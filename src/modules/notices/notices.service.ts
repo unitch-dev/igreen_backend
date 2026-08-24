@@ -4,9 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
-import { extname } from 'path';
-import { v4 as uuidv4 } from 'uuid';
+import { FileEntityType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FilesService } from '../files/files.service';
 import { paginate } from '@common/dto/pagination.dto';
@@ -255,18 +253,24 @@ export class NoticesService {
   async uploadAttachment(organizationId: string, id: string, file: Express.Multer.File) {
     const notice = await this.getNoticeOrThrow(organizationId, id);
 
-    const ext = extname(file.originalname);
-    const key = `notices/${organizationId}/${id}/attachment-${uuidv4()}${ext}`;
-    const fileUrl = await this.files.upload(file.buffer, key, file.mimetype);
+    const asset = await this.files.upload({
+      buffer: file.buffer,
+      organizationId,
+      entityType: FileEntityType.NOTICE_ATTACHMENT,
+      entityId: id,
+      fileName: file.originalname,
+      mimeType: file.mimetype,
+    });
 
     const updated = await this.prisma.notice.update({
       where: { id },
-      data: { attachmentUrl: fileUrl, attachmentKey: key, attachmentName: file.originalname },
+      data: { attachmentUrl: asset.url, attachmentKey: asset.id, attachmentName: asset.fileName },
       include: NOTICE_WITH_COUNT,
     });
 
-    // Best-effort: delete the old attachment after the DB update succeeds.
-    if (notice.attachmentKey && notice.attachmentKey !== key) {
+    // Best-effort: delete the old attachment (attachmentKey now holds the
+    // prior FileAsset id) after the DB update succeeds.
+    if (notice.attachmentKey && notice.attachmentKey !== asset.id) {
       this.files.deleteFile(notice.attachmentKey).catch(() => {});
     }
 

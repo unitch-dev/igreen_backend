@@ -1,135 +1,134 @@
 import { Injectable, Logger, OnModuleInit, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import {
-  S3Client,
-  PutObjectCommand,
-  DeleteObjectCommand,
-  HeadBucketCommand,
-  CreateBucketCommand,
-} from '@aws-sdk/client-s3';
+import { FileAsset, FileEntityType } from '@prisma/client';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { v4 as uuidv4 } from 'uuid';
+import { PrismaService } from '../../prisma/prisma.service';
+
+export interface UploadFileParams {
+  buffer: Buffer;
+  organizationId: string;
+  entityType: FileEntityType;
+  entityId?: string;
+  category?: string;
+  fileName: string;
+  mimeType: string;
+  uploadedById?: string;
+}
 
 @Injectable()
 export class FilesService implements OnModuleInit {
   private readonly logger = new Logger(FilesService.name);
-  private readonly driver: 'local' | 's3';
-  private readonly s3: S3Client;
-  private readonly bucket: string;
-  private readonly endpoint: string;
   private readonly localDir: string;
   private readonly appUrl: string;
 
-  constructor(private readonly config: ConfigService) {
-    this.driver = this.config.get<string>('storage.driver') === 'local' ? 'local' : 's3';
+  constructor(
+    private readonly config: ConfigService,
+    private readonly prisma: PrismaService,
+  ) {
     this.appUrl = this.config.get<string>('appUrl');
-
     this.localDir = path.join(process.cwd(), this.config.get<string>('storage.localDir'));
-
-    const minioEndpoint = config.get<string>('minio.endpoint');
-    const minioPort = config.get<number>('minio.port');
-    const useSsl = config.get<boolean>('minio.useSsl');
-    this.bucket = config.get<string>('minio.bucketName');
-    this.endpoint = `${useSsl ? 'https' : 'http'}://${minioEndpoint}:${minioPort}`;
-
-    this.s3 = new S3Client({
-      endpoint: this.endpoint,
-      region: 'us-east-1',
-      credentials: {
-        accessKeyId: config.get<string>('minio.accessKey'),
-        secretAccessKey: config.get<string>('minio.secretKey'),
-      },
-      forcePathStyle: true,
-    });
   }
 
   /**
-   * For the 's3' driver: checks the configured bucket exists on boot and
-   * creates it if missing, so a fresh MinIO/S3 instance doesn't silently
-   * fail every upload. For the 'local' driver: ensures the upload directory
-   * exists. Both are resilient by design — if storage is unreachable at
-   * boot, this logs a warning and does NOT crash app startup.
+   * Ensures the local upload directory exists. Resilient by design — if the
+   * directory cannot be created at boot, this logs a warning and does NOT
+   * crash app startup (uploads will fail loudly at request time instead).
    */
   async onModuleInit(): Promise<void> {
-    if (this.driver === 'local') {
-      try {
-        await fs.mkdir(this.localDir, { recursive: true });
-        this.logger.log(`Local file storage ready at ${this.localDir}`);
-      } catch (err) {
-        this.logger.warn(`Could not create local upload directory ${this.localDir}: ${err.message}`);
-      }
-      return;
-    }
-
     try {
-      await this.s3.send(new HeadBucketCommand({ Bucket: this.bucket }));
+      await fs.mkdir(this.localDir, { recursive: true });
+      this.logger.log(`Local file storage ready at ${this.localDir}`);
     } catch (err) {
-      try {
-        this.logger.warn(
-          `Bucket "${this.bucket}" not found or inaccessible (${err.message}); attempting to create it.`,
-        );
-        await this.s3.send(new CreateBucketCommand({ Bucket: this.bucket }));
-        this.logger.log(`Bucket "${this.bucket}" created successfully.`);
-      } catch (createErr) {
-        this.logger.warn(
-          `Could not verify/create bucket "${this.bucket}" — file storage may be unavailable ` +
-            `until this is resolved. Continuing app startup. Reason: ${createErr.message}`,
-        );
-      }
+      this.logger.warn(`Could not create local upload directory ${this.localDir}: ${err.message}`);
     }
   }
 
-  async upload(buffer: Buffer, key: string, contentType: string): Promise<string> {
-    if (this.driver === 'local') {
-      return this.uploadLocal(buffer, key);
-    }
+  /**
+   * Writes the file to disk, then creates the FileAsset row — the single
+   * source of truth for lookup/delete. Folder convention (built once, here,
+   * so no caller ever hand-builds a path again):
+   *   uploads/{entityType}/{organizationId}/{entityId ?? 'unassigned'}/{uuid}-{fileName}
+   *
+   * If the DB write fails after the disk write succeeded, the just-written
+   * file is unlinked before rethrowing so no untracked orphan file remains.
+   */
+  async upload(params: UploadFileParams): Promise<FileAsset> {
+    const {
+      buffer,
+      organizationId,
+      entityType,
+      entityId,
+      category,
+      fileName,
+      mimeType,
+      uploadedById,
+    } = params;
 
-    try {
-      await this.s3.send(
-        new PutObjectCommand({
-          Bucket: this.bucket,
-          Key: key,
-          Body: buffer,
-          ContentType: contentType,
-        }),
-      );
-      return `${this.endpoint}/${this.bucket}/${key}`;
-    } catch (err) {
-      this.logger.error(`Failed to upload file ${key}: ${err.message}`, err.stack);
-      throw new ServiceUnavailableException(
-        'File storage is currently unavailable. Please try again later or contact support.',
-      );
-    }
-  }
+    const relativePath = path.join(
+      entityType,
+      organizationId,
+      entityId ?? 'unassigned',
+      `${uuidv4()}-${fileName}`,
+    );
+    const destination = path.join(this.localDir, relativePath);
 
-  private async uploadLocal(buffer: Buffer, key: string): Promise<string> {
-    const destination = path.join(this.localDir, key);
     try {
       await fs.mkdir(path.dirname(destination), { recursive: true });
       await fs.writeFile(destination, buffer);
-      return `${this.appUrl}/uploads/${key}`;
     } catch (err) {
-      this.logger.error(`Failed to write local file ${key}: ${err.message}`, err.stack);
+      this.logger.error(`Failed to write local file ${relativePath}: ${err.message}`, err.stack);
       throw new ServiceUnavailableException(
         'File storage is currently unavailable. Please try again later or contact support.',
       );
     }
-  }
-
-  async deleteFile(key: string): Promise<void> {
-    if (this.driver === 'local') {
-      try {
-        await fs.unlink(path.join(this.localDir, key));
-      } catch (err) {
-        this.logger.error(`Failed to delete local file ${key}: ${err.message}`);
-      }
-      return;
-    }
 
     try {
-      await this.s3.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }));
+      return await this.prisma.fileAsset.create({
+        data: {
+          organizationId,
+          entityType,
+          entityId,
+          category,
+          fileName,
+          filePath: relativePath,
+          url: `${this.appUrl}/uploads/${relativePath}`,
+          mimeType,
+          sizeBytes: buffer.length,
+          uploadedById,
+        },
+      });
     } catch (err) {
-      this.logger.error(`Failed to delete file ${key}: ${err.message}`);
+      // DB write failed after a successful disk write — unlink the orphan
+      // file so it doesn't linger untracked, then rethrow.
+      await fs.unlink(destination).catch(() => {});
+      this.logger.error(
+        `Failed to create FileAsset row for ${relativePath}: ${err.message}`,
+        err.stack,
+      );
+      throw err;
     }
+  }
+
+  /**
+   * Looks up the FileAsset, best-effort unlinks the disk file, then
+   * HARD-deletes the row. No-op (no throw) if the row doesn't exist.
+   *
+   * Hard delete (not soft-delete like the rest of the codebase) is
+   * intentional: a FileAsset row pointing at an unlinked file is a dangling
+   * pointer with no audit value, so there's nothing worth retaining.
+   */
+  async deleteFile(fileAssetId: string): Promise<void> {
+    const asset = await this.prisma.fileAsset.findUnique({ where: { id: fileAssetId } });
+    if (!asset) return;
+
+    try {
+      await fs.unlink(path.join(this.localDir, asset.filePath));
+    } catch (err) {
+      this.logger.error(`Failed to delete local file ${asset.filePath}: ${err.message}`);
+    }
+
+    await this.prisma.fileAsset.delete({ where: { id: fileAssetId } });
   }
 }

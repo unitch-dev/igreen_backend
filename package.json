@@ -28,9 +28,6 @@
     "seed:dummy-attendance": "ts-node -r tsconfig-paths/register prisma/seed-dummy-attendance.ts"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.540.0",
-    "@aws-sdk/lib-storage": "^3.540.0",
-    "@aws-sdk/s3-request-presigner": "^3.540.0",
     "@nestjs/axios": "^3.0.2",
     "@nestjs/bullmq": "^10.1.0",
     "@nestjs/common": "^10.3.0",

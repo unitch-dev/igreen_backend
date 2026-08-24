@@ -60,7 +60,7 @@ export class UpdateEmployeeSelfDto {
   @IsObject({ each: true })
   referenceContacts?: Record<string, unknown>[];
 
-  @ApiPropertyOptional({ example: 'https://minio.example.com/photos/abc.jpg' })
+  @ApiPropertyOptional({ example: 'https://files.example.com/uploads/photos/abc.jpg' })
   @IsOptional()
   @IsString()
   profilePhotoUrl?: string;

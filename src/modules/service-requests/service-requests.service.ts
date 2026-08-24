@@ -155,7 +155,12 @@ export class ServiceRequestsService {
         );
       }
 
-      if (!dto.leavePolicyTypeId || !dto.leaveFromDate || !dto.leaveToDate || dto.leaveDays == null) {
+      if (
+        !dto.leavePolicyTypeId ||
+        !dto.leaveFromDate ||
+        !dto.leaveToDate ||
+        dto.leaveDays == null
+      ) {
         throw new BadRequestException(
           'leavePolicyTypeId, leaveFromDate, leaveToDate, and leaveDays are required for SPECIAL_LEAVE requests',
         );
@@ -325,7 +330,9 @@ export class ServiceRequestsService {
     const sr = await this.getOrThrow(organizationId, id);
 
     if (sr.category !== ServiceRequestCategory.SPECIAL_LEAVE) {
-      throw new BadRequestException('Only SPECIAL_LEAVE requests can be granted through this endpoint');
+      throw new BadRequestException(
+        'Only SPECIAL_LEAVE requests can be granted through this endpoint',
+      );
     }
     if (sr.status === ServiceRequestStatus.RESOLVED || sr.status === ServiceRequestStatus.CLOSED) {
       throw new BadRequestException(`Cannot grant a service request in ${sr.status} status`);

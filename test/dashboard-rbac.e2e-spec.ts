@@ -158,8 +158,13 @@ describe('Dashboards — GET /dashboards role-aware resolution (e2e)', () => {
       .set(authed(organizationId, employee.token))
       .expect(200);
 
-    interface WidgetLike { widgetType: string }
-    interface ConfigLike { roleName: string; widgets: WidgetLike[] }
+    interface WidgetLike {
+      widgetType: string;
+    }
+    interface ConfigLike {
+      roleName: string;
+      widgets: WidgetLike[];
+    }
 
     const adminConfigs: ConfigLike[] = adminRes.body.data;
     const employeeConfigs: ConfigLike[] = employeeRes.body.data;

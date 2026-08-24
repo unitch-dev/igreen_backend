@@ -732,9 +732,9 @@ describe('Performance module (e2e)', () => {
         .expect(200);
 
       expect(res.body.data.data.length).toBeGreaterThanOrEqual(1);
-      expect(
-        res.body.data.data.every((r: any) => r.designationId === otherDesignationId),
-      ).toBe(true);
+      expect(res.body.data.data.every((r: any) => r.designationId === otherDesignationId)).toBe(
+        true,
+      );
     });
 
     it('filters by status', async () => {

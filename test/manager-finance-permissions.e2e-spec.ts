@@ -226,13 +226,19 @@ describe('Manager/finance seeded test logins — permission cross-check (e2e)', 
     await request(app.getHttpServer())
       .post('/api/v1/roles/assign')
       .set(authed(aliToken, orgId))
-      .send({ userId: 'irrelevant-uuid-value-000000000000', roleId: 'irrelevant-uuid-value-000001' })
+      .send({
+        userId: 'irrelevant-uuid-value-000000000000',
+        roleId: 'irrelevant-uuid-value-000001',
+      })
       .expect(403);
 
     await request(app.getHttpServer())
       .post('/api/v1/roles/assign')
       .set(authed(aruToken, orgId))
-      .send({ userId: 'irrelevant-uuid-value-000000000000', roleId: 'irrelevant-uuid-value-000001' })
+      .send({
+        userId: 'irrelevant-uuid-value-000000000000',
+        roleId: 'irrelevant-uuid-value-000001',
+      })
       .expect(403);
   });
 });

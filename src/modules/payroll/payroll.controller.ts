@@ -157,5 +157,5 @@ export class PayrollController {
   }
 
   // TODO: GET /payroll/runs/:id/export — bank disbursement Excel export (exceljs)
-  // TODO: GET /payroll/runs/:id/entries/:employeeId/payslip — payslip PDF (PDFKit) + MinIO storage
+  // TODO: GET /payroll/runs/:id/entries/:employeeId/payslip — payslip PDF (PDFKit) + file storage
 }

@@ -187,9 +187,7 @@ describe('Payroll Structures + employee reassignment (e2e)', () => {
         .get('/api/v1/payroll-structures')
         .set(authed(org.adminToken, org.organizationId))
         .expect(200);
-      expect(
-        list.body.data.data.some((s: any) => s.name === 'Standard CTC Structure'),
-      ).toBe(true);
+      expect(list.body.data.data.some((s: any) => s.name === 'Standard CTC Structure')).toBe(true);
     });
 
     it('rejects a structure with NO non-deductible earning component with the real backend message', async () => {
@@ -304,9 +302,7 @@ describe('Payroll Structures + employee reassignment (e2e)', () => {
         .set(authed(orgB.adminToken, orgB.organizationId))
         .expect(200);
 
-      expect(
-        list.body.data.data.some((s: any) => s.id === orgA.payrollStructureId),
-      ).toBe(false);
+      expect(list.body.data.data.some((s: any) => s.id === orgA.payrollStructureId)).toBe(false);
     });
   });
 

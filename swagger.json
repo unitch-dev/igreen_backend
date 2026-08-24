@@ -7502,8 +7502,8 @@
     "/api/v1/employees/{id}/documents": {
       "post": {
         "operationId": "EmployeesController_uploadDocument",
-        "summary": "Upload an identity or HR document to MinIO",
-        "description": "Adds the document entry to the employee's documents JSON array. Callable by the employee for their OWN record, or by anyone holding 'employee:update'.",
+        "summary": "Upload an identity or HR document",
+        "description": "Adds the document entry to the employee's documents JSON array. Callable by the employee for their OWN record, or by anyone holding 'employee:update'. Max 5 MB; PDF, JPG, or PNG only.",
         "parameters": [
           {
             "name": "id",
@@ -7555,30 +7555,33 @@
         },
         "responses": {
           "200": {
-            "description": ""
-          },
-          "400": {
-            "description": "Bad Request — Validation failed or missing required fields",
+            "description": "Document uploaded and appended to the employee documents array.",
             "content": {
               "application/json": {
                 "schema": {
                   "example": {
-                    "success": false,
-                    "message": "Validation failed: email must be a valid email address",
-                    "error": {
-                      "message": [
-                        "email must be a valid email address"
-                      ],
-                      "statusCode": 400,
-                      "path": "/api/v1/example",
-                      "method": "POST"
+                    "success": true,
+                    "data": {
+                      "documents": [
+                        {
+                          "type": "AADHAAR",
+                          "fileName": "aadhaar.pdf",
+                          "fileUrl": "https://api.example.com/uploads/EMPLOYEE_DOCUMENT/org-1/emp-1/uuid-aadhaar.pdf",
+                          "fileAssetId": "a1b2c3d4-...-fileasset",
+                          "notes": null,
+                          "uploadedAt": "2026-08-24T10:10:00.000Z",
+                          "uploadedBy": "user-1"
+                        }
+                      ]
                     },
-                    "errorType": "HTTP_400",
-                    "httpCode": 400
+                    "timestamp": "2026-08-24T10:10:00.000Z"
                   }
                 }
               }
             }
+          },
+          "400": {
+            "description": "Rejected file — disallowed mimetype (only PDF/JPG/PNG accepted) or missing documentType"
           },
           "401": {
             "description": "Unauthorized — Invalid or expired token",
@@ -7699,8 +7702,8 @@
     "/api/v1/employees/{id}/profile-photo": {
       "post": {
         "operationId": "EmployeesController_uploadProfilePhoto",
-        "summary": "Upload employee profile photo to MinIO",
-        "description": "Replaces any existing profile photo. Old file is deleted from storage. Callable by the employee for their OWN record, or by anyone holding 'employee:update'.",
+        "summary": "Upload employee profile photo",
+        "description": "Replaces any existing profile photo. Old file is deleted from storage. Callable by the employee for their OWN record, or by anyone holding 'employee:update'. Max 5 MB; JPG, PNG, or WEBP only.",
         "parameters": [
           {
             "name": "id",
@@ -7733,30 +7736,24 @@
         },
         "responses": {
           "200": {
-            "description": ""
-          },
-          "400": {
-            "description": "Bad Request — Validation failed or missing required fields",
+            "description": "Profile photo uploaded; employee.profilePhotoUrl updated.",
             "content": {
               "application/json": {
                 "schema": {
                   "example": {
-                    "success": false,
-                    "message": "Validation failed: email must be a valid email address",
-                    "error": {
-                      "message": [
-                        "email must be a valid email address"
-                      ],
-                      "statusCode": 400,
-                      "path": "/api/v1/example",
-                      "method": "POST"
+                    "success": true,
+                    "data": {
+                      "id": "emp-1",
+                      "profilePhotoUrl": "https://api.example.com/uploads/EMPLOYEE_PROFILE_PHOTO/org-1/emp-1/uuid-photo.jpg"
                     },
-                    "errorType": "HTTP_400",
-                    "httpCode": 400
+                    "timestamp": "2026-08-24T10:10:00.000Z"
                   }
                 }
               }
             }
+          },
+          "400": {
+            "description": "Rejected file — only JPG, PNG, or WEBP images under 5 MB are accepted"
           },
           "401": {
             "description": "Unauthorized — Invalid or expired token",
@@ -9282,7 +9279,27 @@
         },
         "responses": {
           "200": {
-            "description": "Documents uploaded (and, if finalSubmit=true, onboarding submitted for review)."
+            "description": "Documents uploaded (and, if finalSubmit=true, onboarding submitted for review).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": true,
+                    "data": {
+                      "uploaded": [
+                        {
+                          "type": "AADHAAR",
+                          "fileName": "aadhaar.pdf",
+                          "fileUrl": "https://api.example.com/uploads/ONBOARDING_DOCUMENT/org-1/unassigned/uuid-aadhaar.pdf",
+                          "fileAssetId": "a1b2c3d4-...-fileasset"
+                        }
+                      ]
+                    },
+                    "timestamp": "2026-08-24T10:10:00.000Z"
+                  }
+                }
+              }
+            }
           },
           "400": {
             "description": "Bad request — either a rejected file (disallowed mimetype; only PDF/JPG/PNG accepted) or Step 1 (personal + bank details) has not been completed yet."
@@ -9291,7 +9308,7 @@
             "description": "A file exceeds the 5 MB per-file size limit."
           },
           "503": {
-            "description": "File storage (MinIO/S3) is currently unavailable. Retry later."
+            "description": "File storage is currently unavailable. Retry later."
           }
         },
         "tags": [
@@ -9726,7 +9743,7 @@
       "post": {
         "operationId": "ChatController_uploadAttachment",
         "summary": "Upload a file attachment as a chat message",
-        "description": "Uploads the file to object storage (key: chat/{organizationId}/{roomId}/{uuid}.{ext}) then creates a message of type \"file\" pointing at it. Does not fan out over the real-time socket channel — only the REST response reflects the new message immediately.",
+        "description": "Uploads the file (tagged as a FileAsset under the CHAT_ATTACHMENT entity type) then creates a message of type \"file\" pointing at its URL. Does not fan out over the real-time socket channel — only the REST response reflects the new message immediately.",
         "parameters": [
           {
             "name": "id",
@@ -9773,7 +9790,7 @@
                       "senderName": "Jane Doe",
                       "content": null,
                       "messageType": "file",
-                      "fileUrl": "https://storage.example.com/chat/org-1/room-1/uuid.pdf",
+                      "fileUrl": "https://api.example.com/uploads/CHAT_ATTACHMENT/org-1/room-1/uuid-timesheet.pdf",
                       "fileName": "timesheet.pdf",
                       "sentAt": "2026-07-13T10:10:00.000Z",
                       "editedAt": null,
@@ -20705,7 +20722,7 @@
     "/api/v1/notices/{id}/attachment": {
       "post": {
         "operationId": "NoticesController_uploadAttachment",
-        "summary": "Attach a file to a notice (uploaded to MinIO/S3)",
+        "summary": "Attach a file to a notice",
         "parameters": [
           {
             "name": "id",
@@ -34050,7 +34067,7 @@
           },
           "profilePhotoUrl": {
             "type": "string",
-            "example": "https://minio.example.com/photos/abc.jpg"
+            "example": "https://files.example.com/uploads/photos/abc.jpg"
           }
         }
       },
@@ -34105,7 +34122,7 @@
           },
           "profilePhotoUrl": {
             "type": "string",
-            "example": "https://minio.example.com/photos/abc.jpg"
+            "example": "https://files.example.com/uploads/photos/abc.jpg"
           }
         }
       },

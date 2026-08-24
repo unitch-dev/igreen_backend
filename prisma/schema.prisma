@@ -352,6 +352,15 @@ enum OnboardingStatus {
   EXPIRED
 }
 
+enum FileEntityType {
+  EMPLOYEE_DOCUMENT
+  EMPLOYEE_PROFILE_PHOTO
+  ORGANIZATION_LOGO
+  CHAT_ATTACHMENT
+  NOTICE_ATTACHMENT
+  ONBOARDING_DOCUMENT
+}
+
 // ─── ORGANIZATION ─────────────────────────────────────────────────────────────
 
 model Organization {
@@ -1765,6 +1774,35 @@ model DashboardWidget {
   dashboard DashboardConfig @relation(fields: [dashboardId], references: [id], onDelete: Cascade)
 
   @@map("dashboard_widgets")
+}
+
+// ─── FILE STORAGE ─────────────────────────────────────────────────────────────
+
+// Single source of truth for uploaded file lookup/delete. Hard-deleted (not
+// soft-deleted) when the underlying disk file is unlinked — a row pointing at
+// an unlinked file is a dangling pointer with no audit value.
+//
+// NOTE: intentionally has NO createdById/updatedById — the audit middleware
+// auto-injects those from CLS `userId`, but FileAsset rows are also written
+// from the onboarding-public route, which has no authenticated CLS user.
+// `uploadedById` is the explicit, optional equivalent.
+model FileAsset {
+  id             String         @id @default(uuid())
+  organizationId String
+  entityType     FileEntityType
+  entityId       String?
+  category       String?
+  fileName       String
+  filePath       String
+  url            String
+  mimeType       String
+  sizeBytes      Int
+  uploadedById   String?
+  createdAt      DateTime       @default(now())
+
+  @@index([organizationId])
+  @@index([entityType, entityId])
+  @@map("file_assets")
 }
 
 // ─── AUDIT LOGS ───────────────────────────────────────────────────────────────

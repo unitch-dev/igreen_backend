@@ -51,9 +51,9 @@ export class CreateServiceRequestDto {
 
   @ApiPropertyOptional({
     description:
-      'The employee this request is about. Defaults to the caller\'s own employee record. ' +
-      'For category=SPECIAL_LEAVE, a manager sets this to one of their direct reports\' ' +
-      "employee id (or any employee, if the caller holds an admin-level permission) — the " +
+      "The employee this request is about. Defaults to the caller's own employee record. " +
+      "For category=SPECIAL_LEAVE, a manager sets this to one of their direct reports' " +
+      'employee id (or any employee, if the caller holds an admin-level permission) — the ' +
       'caller may not file a SPECIAL_LEAVE request for themselves.',
   })
   @IsOptional()
@@ -67,7 +67,9 @@ export class CreateServiceRequestDto {
   @ApiPropertyOptional({
     description: 'Required when category=SPECIAL_LEAVE. The LeavePolicyType to grant against.',
   })
-  @ValidateIf((dto: CreateServiceRequestDto) => dto.category === ServiceRequestCategory.SPECIAL_LEAVE)
+  @ValidateIf(
+    (dto: CreateServiceRequestDto) => dto.category === ServiceRequestCategory.SPECIAL_LEAVE,
+  )
   @IsUUID()
   leavePolicyTypeId?: string;
 
@@ -75,7 +77,9 @@ export class CreateServiceRequestDto {
     example: '2026-09-01',
     description: 'Required when category=SPECIAL_LEAVE.',
   })
-  @ValidateIf((dto: CreateServiceRequestDto) => dto.category === ServiceRequestCategory.SPECIAL_LEAVE)
+  @ValidateIf(
+    (dto: CreateServiceRequestDto) => dto.category === ServiceRequestCategory.SPECIAL_LEAVE,
+  )
   @IsDateString()
   leaveFromDate?: string;
 
@@ -83,7 +87,9 @@ export class CreateServiceRequestDto {
     example: '2026-09-03',
     description: 'Required when category=SPECIAL_LEAVE.',
   })
-  @ValidateIf((dto: CreateServiceRequestDto) => dto.category === ServiceRequestCategory.SPECIAL_LEAVE)
+  @ValidateIf(
+    (dto: CreateServiceRequestDto) => dto.category === ServiceRequestCategory.SPECIAL_LEAVE,
+  )
   @IsDateString()
   leaveToDate?: string;
 
@@ -91,7 +97,9 @@ export class CreateServiceRequestDto {
     example: 3,
     description: 'Required when category=SPECIAL_LEAVE.',
   })
-  @ValidateIf((dto: CreateServiceRequestDto) => dto.category === ServiceRequestCategory.SPECIAL_LEAVE)
+  @ValidateIf(
+    (dto: CreateServiceRequestDto) => dto.category === ServiceRequestCategory.SPECIAL_LEAVE,
+  )
   @IsNumber()
   @Min(0.5)
   leaveDays?: number;

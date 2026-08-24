@@ -110,9 +110,9 @@ export class ChatController {
   @ApiOperation({
     summary: 'List org employees available to start a chat with',
     description:
-      'Active employees in the caller\'s organization (excluding the caller), for the ' +
+      "Active employees in the caller's organization (excluding the caller), for the " +
       '"start a new chat" member picker. Not gated by `employee:read` — any authenticated, ' +
-      'active employee may use chat, matching this controller\'s access model.',
+      "active employee may use chat, matching this controller's access model.",
   })
   @ApiResponse({ status: 401, description: 'Not authenticated' })
   listEmployees(
@@ -332,8 +332,8 @@ export class ChatController {
   @ApiOperation({
     summary: 'Upload a file attachment as a chat message',
     description:
-      'Uploads the file to object storage (key: chat/{organizationId}/{roomId}/{uuid}.{ext}) ' +
-      'then creates a message of type "file" pointing at it. Does not fan out over the ' +
+      'Uploads the file (tagged as a FileAsset under the CHAT_ATTACHMENT entity type) then ' +
+      'creates a message of type "file" pointing at its URL. Does not fan out over the ' +
       'real-time socket channel — only the REST response reflects the new message immediately.',
   })
   @ApiParam({ name: 'id', description: 'Chat room UUID' })
@@ -358,7 +358,7 @@ export class ChatController {
           senderName: 'Jane Doe',
           content: null,
           messageType: 'file',
-          fileUrl: 'https://storage.example.com/chat/org-1/room-1/uuid.pdf',
+          fileUrl: 'https://api.example.com/uploads/CHAT_ATTACHMENT/org-1/room-1/uuid-timesheet.pdf',
           fileName: 'timesheet.pdf',
           sentAt: '2026-07-13T10:10:00.000Z',
           editedAt: null,

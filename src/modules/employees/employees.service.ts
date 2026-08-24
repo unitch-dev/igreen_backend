@@ -7,12 +7,10 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
-import { extname } from 'path';
-import { v4 as uuidv4 } from 'uuid';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { ConfigService } from '@nestjs/config';
-import { EmployeeStatus, Prisma } from '@prisma/client';
+import { EmployeeStatus, FileEntityType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FilesService } from '../files/files.service';
 import { RedisService } from '../../redis/redis.service';
@@ -359,8 +357,7 @@ export class EmployeesService {
         where: { id: dto.zoneId, organizationId, deletedAt: null },
         select: { id: true },
       });
-      if (!zone)
-        throw new BadRequestException(`Zone ${dto.zoneId} not found in this organization`);
+      if (!zone) throw new BadRequestException(`Zone ${dto.zoneId} not found in this organization`);
     }
 
     return this.prisma.employee.update({
@@ -621,15 +618,23 @@ export class EmployeesService {
     });
     if (!employee) throw new NotFoundException('Employee not found');
 
-    const ext = extname(file.originalname);
-    const key = `employees/${organizationId}/${id}/${dto.documentType}-${uuidv4()}${ext}`;
-    const fileUrl = await this.files.upload(file.buffer, key, file.mimetype);
+    const asset = await this.files.upload({
+      buffer: file.buffer,
+      organizationId,
+      entityType: FileEntityType.EMPLOYEE_DOCUMENT,
+      entityId: id,
+      category: dto.documentType,
+      fileName: file.originalname,
+      mimeType: file.mimetype,
+      uploadedById: updatedById,
+    });
 
     const existing = Array.isArray(employee.documents) ? (employee.documents as object[]) : [];
     const newEntry = {
       type: dto.documentType,
-      fileName: file.originalname,
-      fileUrl,
+      fileName: asset.fileName,
+      fileUrl: asset.url,
+      fileAssetId: asset.id,
       notes: dto.notes ?? null,
       uploadedAt: new Date().toISOString(),
       uploadedBy: updatedById,
@@ -641,7 +646,7 @@ export class EmployeesService {
       data: { documents: updatedDocuments as unknown as Prisma.InputJsonValue, updatedById },
     });
 
-    return { fileUrl, documents: updatedDocuments };
+    return { fileUrl: asset.url, documents: updatedDocuments };
   }
 
   async uploadProfilePhoto(
@@ -660,24 +665,38 @@ export class EmployeesService {
     });
     if (!employee) throw new NotFoundException('Employee not found');
 
-    const ext = extname(file.originalname);
-    const key = `employees/${organizationId}/${id}/profile-photo${ext}`;
-    const fileUrl = await this.files.upload(file.buffer, key, file.mimetype);
+    const asset = await this.files.upload({
+      buffer: file.buffer,
+      organizationId,
+      entityType: FileEntityType.EMPLOYEE_PROFILE_PHOTO,
+      entityId: id,
+      fileName: file.originalname,
+      mimeType: file.mimetype,
+      uploadedById: updatedById,
+    });
 
     await this.prisma.employee.update({
       where: { id },
-      data: { profilePhotoUrl: fileUrl, updatedById },
+      data: { profilePhotoUrl: asset.url, updatedById },
     });
 
-    // Best-effort: delete old photo after DB update
-    if (employee.profilePhotoUrl) {
-      const oldKey = this.extractMinioKey(employee.profilePhotoUrl);
-      if (oldKey && oldKey !== key) {
-        this.files.deleteFile(oldKey).catch(() => {});
-      }
+    // Best-effort: delete every prior EMPLOYEE_PROFILE_PHOTO FileAsset for
+    // this employee — this is the actual fix for the old bug where the
+    // previous photo was never unlinked from disk on re-upload.
+    const priorAssets = await this.prisma.fileAsset.findMany({
+      where: {
+        organizationId,
+        entityType: FileEntityType.EMPLOYEE_PROFILE_PHOTO,
+        entityId: id,
+        id: { not: asset.id },
+      },
+      select: { id: true },
+    });
+    for (const prior of priorAssets) {
+      this.files.deleteFile(prior.id).catch(() => {});
     }
 
-    return { profilePhotoUrl: fileUrl };
+    return { profilePhotoUrl: asset.url };
   }
 
   async getSubordinates(organizationId: string, id: string, depth = 5) {
@@ -794,20 +813,5 @@ export class EmployeesService {
     });
 
     return { sent: true, expiresIn: '24h' };
-  }
-
-  private extractMinioKey(url: string): string | null {
-    try {
-      const endpoint = this.config.get<string>('minio.endpoint');
-      const port = this.config.get<number>('minio.port');
-      const bucket = this.config.get<string>('minio.bucketName');
-      const prefix = `${endpoint}:${port}/${bucket}/`;
-      if (url.includes(prefix)) {
-        return url.substring(url.indexOf(prefix) + prefix.length);
-      }
-      return null;
-    } catch {
-      return null;
-    }
   }
 }

@@ -22,7 +22,7 @@ async function bootstrap() {
   const apiPrefix = configService.get<string>('apiPrefix');
   const nodeEnv = configService.get<string>('nodeEnv');
 
-  // Serve locally-stored uploads (used when STORAGE_DRIVER=local instead of S3/MinIO)
+  // Serve locally-stored uploads (local disk is the only storage backend)
   app.useStaticAssets(path.join(process.cwd(), configService.get<string>('storage.localDir')), {
     prefix: '/uploads',
   });

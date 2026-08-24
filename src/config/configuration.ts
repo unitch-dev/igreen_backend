@@ -20,18 +20,7 @@ export default () => ({
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '30d',
   },
 
-  minio: {
-    endpoint: process.env.MINIO_ENDPOINT || 'localhost',
-    port: parseInt(process.env.MINIO_PORT, 10) || 9000,
-    useSsl: process.env.MINIO_USE_SSL === 'true',
-    accessKey: process.env.MINIO_ACCESS_KEY || 'minioadmin',
-    secretKey: process.env.MINIO_SECRET_KEY || 'minioadmin',
-    bucketName: process.env.MINIO_BUCKET_NAME || 'hrms-files',
-  },
-
   storage: {
-    // 's3' (MinIO/S3-compatible, default) or 'local' (disk under STORAGE_LOCAL_DIR, dev/no-MinIO fallback)
-    driver: process.env.STORAGE_DRIVER || 's3',
     localDir: process.env.STORAGE_LOCAL_DIR || 'uploads',
   },
 

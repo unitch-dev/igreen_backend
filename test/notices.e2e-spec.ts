@@ -106,7 +106,11 @@ describe('Notices module (e2e)', () => {
         organizationId: org.id,
         name: `notices-e2e-manager-${label}`,
         description: 'Test manager role',
-        permissions: ['employee:read', 'onboarding:manage'],
+        // NOTE: 'notice:manage' was missing here (pre-existing bug, unrelated
+        // to the FileAsset storage refactor — see docs/known-issues.md), which
+        // made every notice-creation call in this fixture 403 and cascaded
+        // into 15/17 tests failing on unrelated assertions/timeouts.
+        permissions: ['employee:read', 'onboarding:manage', 'notice:manage', 'notice:read'],
         isSystemRole: false,
       },
     });
@@ -116,7 +120,9 @@ describe('Notices module (e2e)', () => {
         organizationId: org.id,
         name: `notices-e2e-employee-${label}`,
         description: 'Test employee role (board view only)',
-        permissions: ['employee:read'],
+        // 'notice:read' added — pre-existing bug: without it, board-load
+        // calls made with this token 403'd (see docs/known-issues.md).
+        permissions: ['employee:read', 'notice:read'],
         isSystemRole: false,
       },
     });
@@ -126,7 +132,9 @@ describe('Notices module (e2e)', () => {
         organizationId: org.id,
         name: `notices-e2e-special-${label}`,
         description: 'Test role used for role-targeting',
-        permissions: ['employee:read'],
+        // 'notice:read' added — pre-existing bug: without it, board-load
+        // calls made with this token 403'd (see docs/known-issues.md).
+        permissions: ['employee:read', 'notice:read'],
         isSystemRole: false,
       },
     });

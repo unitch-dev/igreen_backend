@@ -21,12 +21,11 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
+import { FileEntityType } from '@prisma/client';
 import { Public } from '../../../common/decorators/public.decorator';
 import { OnboardingService } from './onboarding.service';
 import { SubmitDetailsDto } from '../dto/submit-details.dto';
 import { FilesService } from '../../files/files.service';
-import { v4 as uuidv4 } from 'uuid';
-import * as path from 'path';
 
 const ALLOWED_DOCUMENT_MIMETYPES = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
 const MAX_DOCUMENT_FILE_SIZE_BYTES = 5 * 1024 * 1024;
@@ -87,6 +86,22 @@ export class OnboardingPublicController {
   @ApiResponse({
     status: 200,
     description: 'Documents uploaded (and, if finalSubmit=true, onboarding submitted for review).',
+    schema: {
+      example: {
+        success: true,
+        data: {
+          uploaded: [
+            {
+              type: 'AADHAAR',
+              fileName: 'aadhaar.pdf',
+              fileUrl: 'https://api.example.com/uploads/ONBOARDING_DOCUMENT/org-1/unassigned/uuid-aadhaar.pdf',
+              fileAssetId: 'a1b2c3d4-...-fileasset',
+            },
+          ],
+        },
+        timestamp: '2026-08-24T10:10:00.000Z',
+      },
+    },
   })
   @ApiResponse({
     status: 400,
@@ -99,7 +114,7 @@ export class OnboardingPublicController {
   })
   @ApiResponse({
     status: 503,
-    description: 'File storage (MinIO/S3) is currently unavailable. Retry later.',
+    description: 'File storage is currently unavailable. Retry later.',
   })
   @ApiBody({
     schema: {
@@ -132,23 +147,41 @@ export class OnboardingPublicController {
   ) {
     // Validate business preconditions (link status, expiry, "details" step
     // completed) BEFORE touching storage — see OnboardingService.assertCanSubmitDocuments.
-    await this.onboardingService.assertCanSubmitDocuments(token);
+    const { organizationId } = await this.onboardingService.assertCanSubmitDocuments(token);
 
     const typesArray = Array.isArray(documentTypes) ? documentTypes : [documentTypes];
     const doFinalSubmit = finalSubmit === 'true';
 
-    const uploaded: Array<{ type: string; fileName: string; fileUrl: string }> = [];
+    const uploaded: Array<{
+      type: string;
+      fileName: string;
+      fileUrl: string;
+      fileAssetId: string;
+    }> = [];
 
     if (files?.length) {
       await Promise.all(
         files.map(async (file, i) => {
-          const ext = path.extname(file.originalname);
-          const key = `onboarding/${token}/${typesArray[i] ?? 'DOC'}-${uuidv4()}${ext}`;
-          const fileUrl = await this.filesService.upload(file.buffer, key, file.mimetype);
+          // PUBLIC route — no authenticated user and no Employee record exists
+          // yet at this point in the flow, so `entityId`/`uploadedById` are
+          // intentionally left undefined (the file is bucketed under
+          // `.../unassigned/...`). The onboarding token itself lives on
+          // `OnboardingLink.submissionData`, not on the FileAsset. The
+          // `fileAssetId` is preserved in the submission data so the file can
+          // be re-tagged/moved once the Employee record is created.
+          const asset = await this.filesService.upload({
+            buffer: file.buffer,
+            organizationId,
+            entityType: FileEntityType.ONBOARDING_DOCUMENT,
+            category: typesArray[i] ?? 'OTHER',
+            fileName: file.originalname,
+            mimeType: file.mimetype,
+          });
           uploaded.push({
             type: typesArray[i] ?? 'OTHER',
-            fileName: file.originalname,
-            fileUrl,
+            fileName: asset.fileName,
+            fileUrl: asset.url,
+            fileAssetId: asset.id,
           });
         }),
       );

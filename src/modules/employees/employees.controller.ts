@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -22,6 +23,7 @@ import {
   ApiOperation,
   ApiParam,
   ApiQuery,
+  ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -36,6 +38,14 @@ import { EmployeeQueryDto } from './dto/employee-query.dto';
 import { UpdateBankDetailsDto } from './dto/update-bank-details.dto';
 import { UpdateEmergencyContactDto } from './dto/update-emergency-contact.dto';
 import { UploadDocumentDto } from './dto/upload-document.dto';
+
+// Mirrors OnboardingPublicController's Multer convention (see rule §27 in
+// .claude/agents/hrms-backend.md) — every multipart upload endpoint MUST set
+// an explicit fileFilter allowlist + a fileSize limit, Multer accepts
+// anything by default otherwise.
+const MAX_UPLOAD_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+const ALLOWED_DOCUMENT_MIMETYPES = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+const ALLOWED_IMAGE_MIMETYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
 
 @ApiTags('Employees')
 @ApiBearerAuth()
@@ -181,15 +191,54 @@ export class EmployeesController {
 
   @Post(':id/documents')
   @HttpCode(HttpStatus.OK)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: MAX_UPLOAD_FILE_SIZE_BYTES },
+      fileFilter: (req, file, cb) => {
+        if (!ALLOWED_DOCUMENT_MIMETYPES.includes(file.mimetype)) {
+          cb(new BadRequestException('Only PDF, JPG, and PNG files are allowed'), false);
+          return;
+        }
+        cb(null, true);
+      },
+    }),
+  )
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
-    summary: 'Upload an identity or HR document to MinIO',
+    summary: 'Upload an identity or HR document',
     description:
       "Adds the document entry to the employee's documents JSON array. " +
-      "Callable by the employee for their OWN record, or by anyone holding 'employee:update'.",
+      "Callable by the employee for their OWN record, or by anyone holding 'employee:update'. " +
+      'Max 5 MB; PDF, JPG, or PNG only.',
   })
   @ApiParam({ name: 'id', description: 'Employee UUID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Document uploaded and appended to the employee documents array.',
+    schema: {
+      example: {
+        success: true,
+        data: {
+          documents: [
+            {
+              type: 'AADHAAR',
+              fileName: 'aadhaar.pdf',
+              fileUrl: 'https://api.example.com/uploads/EMPLOYEE_DOCUMENT/org-1/emp-1/uuid-aadhaar.pdf',
+              fileAssetId: 'a1b2c3d4-...-fileasset',
+              notes: null,
+              uploadedAt: '2026-08-24T10:10:00.000Z',
+              uploadedBy: 'user-1',
+            },
+          ],
+        },
+        timestamp: '2026-08-24T10:10:00.000Z',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Rejected file — disallowed mimetype (only PDF/JPG/PNG accepted) or missing documentType',
+  })
   @ApiBody({
     schema: {
       type: 'object',
@@ -237,13 +286,25 @@ export class EmployeesController {
 
   @Post(':id/profile-photo')
   @HttpCode(HttpStatus.OK)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: MAX_UPLOAD_FILE_SIZE_BYTES },
+      fileFilter: (req, file, cb) => {
+        if (!ALLOWED_IMAGE_MIMETYPES.includes(file.mimetype)) {
+          cb(new BadRequestException('Only JPG, PNG, and WEBP images are allowed'), false);
+          return;
+        }
+        cb(null, true);
+      },
+    }),
+  )
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
-    summary: 'Upload employee profile photo to MinIO',
+    summary: 'Upload employee profile photo',
     description:
       'Replaces any existing profile photo. Old file is deleted from storage. ' +
-      "Callable by the employee for their OWN record, or by anyone holding 'employee:update'.",
+      "Callable by the employee for their OWN record, or by anyone holding 'employee:update'. " +
+      'Max 5 MB; JPG, PNG, or WEBP only.',
   })
   @ApiParam({ name: 'id', description: 'Employee UUID' })
   @ApiBody({
@@ -252,6 +313,25 @@ export class EmployeesController {
       required: ['file'],
       properties: { file: { type: 'string', format: 'binary' } },
     },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Profile photo uploaded; employee.profilePhotoUrl updated.',
+    schema: {
+      example: {
+        success: true,
+        data: {
+          id: 'emp-1',
+          profilePhotoUrl:
+            'https://api.example.com/uploads/EMPLOYEE_PROFILE_PHOTO/org-1/emp-1/uuid-photo.jpg',
+        },
+        timestamp: '2026-08-24T10:10:00.000Z',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Rejected file — only JPG, PNG, or WEBP images under 5 MB are accepted',
   })
   uploadProfilePhoto(
     @CurrentUser('organizationId') organizationId: string,

@@ -127,7 +127,7 @@ export class NoticesController {
   @RequirePermissions('notice:manage')
   @UseInterceptors(FileInterceptor('file'))
   @ApiConsumes('multipart/form-data')
-  @ApiOperation({ summary: 'Attach a file to a notice (uploaded to MinIO/S3)' })
+  @ApiOperation({ summary: 'Attach a file to a notice' })
   @ApiParam({ name: 'id', description: 'Notice UUID' })
   @ApiBody({
     schema: {

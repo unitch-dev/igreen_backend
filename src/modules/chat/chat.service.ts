@@ -4,9 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ChatRoomType, EmployeeStatus, Prisma } from '@prisma/client';
-import { extname } from 'path';
-import { v4 as uuidv4 } from 'uuid';
+import { ChatRoomType, EmployeeStatus, FileEntityType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FilesService } from '../files/files.service';
 import { paginate } from '@common/dto/pagination.dto';
@@ -341,12 +339,18 @@ export class ChatService {
     await this.assertRoomInOrg(organizationId, roomId);
     await this.assertActiveMember(roomId, employeeId);
 
-    const ext = extname(file.originalname);
-    const key = `chat/${organizationId}/${roomId}/${uuidv4()}${ext}`;
-    const fileUrl = await this.files.upload(file.buffer, key, file.mimetype);
+    const asset = await this.files.upload({
+      buffer: file.buffer,
+      organizationId,
+      entityType: FileEntityType.CHAT_ATTACHMENT,
+      entityId: roomId,
+      fileName: file.originalname,
+      mimeType: file.mimetype,
+      uploadedById: currentUser.id,
+    });
 
     return this.sendMessage(organizationId, currentUser, roomId, {
-      fileUrl,
+      fileUrl: asset.url,
       fileName: file.originalname,
       messageType: 'file',
     });

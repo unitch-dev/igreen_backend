@@ -2,7 +2,9 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsDateString, IsNumber, IsOptional, IsString, IsUUID, Min } from 'class-validator';
 
 export class ApplyLeaveDto {
-  @ApiProperty({ description: 'LeavePolicyType UUID (the specific leave type within the assigned policy bundle)' })
+  @ApiProperty({
+    description: 'LeavePolicyType UUID (the specific leave type within the assigned policy bundle)',
+  })
   @IsUUID()
   leavePolicyTypeId: string;
 

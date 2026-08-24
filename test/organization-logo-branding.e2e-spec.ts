@@ -50,10 +50,9 @@ describe('Per-tenant logo branding (e2e)', () => {
     // Mirror main.ts's static /uploads mount so the dogfooding test can
     // assert the seeded logo URL is actually reachable, not just present.
     const configService = app.get(ConfigService);
-    app.useStaticAssets(
-      path.join(process.cwd(), configService.get<string>('storage.localDir')),
-      { prefix: '/uploads' },
-    );
+    app.useStaticAssets(path.join(process.cwd(), configService.get<string>('storage.localDir')), {
+      prefix: '/uploads',
+    });
 
     await app.init();
 
@@ -174,7 +173,11 @@ describe('Per-tenant logo branding (e2e)', () => {
 
       expect(res.body.success).toBe(true);
       expect(typeof res.body.data.logoUrl).toBe('string');
-      expect(res.body.data.logoUrl).toContain(`organizations/${org.organizationId}/logo`);
+      // Folder convention (see FilesService.upload / docs/modules/file-asset-storage-refactor.md):
+      // uploads/{entityType}/{organizationId}/{entityId ?? 'unassigned'}/{uuid}-{fileName}
+      expect(res.body.data.logoUrl).toContain(
+        `ORGANIZATION_LOGO/${org.organizationId}/${org.organizationId}/`,
+      );
 
       const dbOrg = await prisma.organization.findUnique({ where: { id: org.organizationId } });
       expect(dbOrg?.logoUrl).toBe(res.body.data.logoUrl);
@@ -196,7 +199,10 @@ describe('Per-tenant logo branding (e2e)', () => {
       await request(app.getHttpServer())
         .post('/api/v1/organization/logo')
         .set(authed(org.adminToken, org.organizationId))
-        .attach('file', Buffer.from('not an image'), { filename: 'evil.exe', contentType: 'application/x-msdownload' })
+        .attach('file', Buffer.from('not an image'), {
+          filename: 'evil.exe',
+          contentType: 'application/x-msdownload',
+        })
         .expect(400);
     });
 

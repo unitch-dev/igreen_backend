@@ -242,7 +242,14 @@ describe('Onboarding approve (HR) — POST /onboarding-links/:id/approve (e2e)',
             accountType: 'SAVINGS',
             declarationAccepted: true,
           },
-          documents: [{ type: 'aadhar', fileName: 'a.pdf', fileUrl: 's3://x', uploadedAt: new Date().toISOString() }],
+          documents: [
+            {
+              type: 'aadhar',
+              fileName: 'a.pdf',
+              fileUrl: 's3://x',
+              uploadedAt: new Date().toISOString(),
+            },
+          ],
         },
       },
     });

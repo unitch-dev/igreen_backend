@@ -30,7 +30,13 @@ import { OrganizationsService } from './organizations.service';
 // upload endpoint (`onboarding-public.controller.ts`) — every multipart
 // upload endpoint MUST set an explicit fileFilter + limits; Multer accepts
 // anything unbounded by default.
-const ALLOWED_LOGO_MIMETYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/svg+xml'];
+const ALLOWED_LOGO_MIMETYPES = [
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/webp',
+  'image/svg+xml',
+];
 const MAX_LOGO_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 
 @ApiTags('Organizations')
@@ -111,8 +117,9 @@ export class OrganizationsController {
   @ApiResponse({ status: 404, description: 'Organization not found' })
   uploadLogo(
     @CurrentUser('organizationId') organizationId: string,
+    @CurrentUser('id') userId: string,
     @UploadedFile() file: Express.Multer.File,
   ) {
-    return this.organizationsService.uploadLogo(organizationId, file);
+    return this.organizationsService.uploadLogo(organizationId, file, userId);
   }
 }

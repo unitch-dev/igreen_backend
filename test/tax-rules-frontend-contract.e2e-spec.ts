@@ -198,10 +198,7 @@ describe('Tax Rules — frontend payload-shape contract (e2e)', () => {
 
     // Soft-delete, then confirm it disappears from the active list and
     // appears in /tax-rules/trash.
-    await request(app.getHttpServer())
-      .delete(`/api/v1/tax-rules/${id}`)
-      .set(authed())
-      .expect(200);
+    await request(app.getHttpServer()).delete(`/api/v1/tax-rules/${id}`).set(authed()).expect(200);
 
     const activeList = await request(app.getHttpServer())
       .get('/api/v1/tax-rules')

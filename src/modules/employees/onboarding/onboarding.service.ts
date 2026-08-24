@@ -44,7 +44,13 @@ interface SubmissionDetails {
 
 interface SubmissionData {
   details?: SubmissionDetails;
-  documents?: Array<{ type: string; fileName: string; fileUrl: string; uploadedAt: string }>;
+  documents?: Array<{
+    type: string;
+    fileName: string;
+    fileUrl: string;
+    fileAssetId: string;
+    uploadedAt: string;
+  }>;
   completedSteps: string[];
 }
 
@@ -330,11 +336,7 @@ export class OnboardingService {
       select: { id: true },
     });
     for (const policyType of policyTypes) {
-      await this.leaveBalanceService.initializeForEmployee(
-        employee.id,
-        policyType.id,
-        currentYear,
-      );
+      await this.leaveBalanceService.initializeForEmployee(employee.id, policyType.id, currentYear);
     }
 
     // After transaction: enqueue welcome email (non-blocking)
@@ -535,12 +537,12 @@ export class OnboardingService {
   /**
    * Validates the link + "details step completed" precondition WITHOUT
    * touching storage. MUST be called by the controller before any file is
-   * uploaded to S3/MinIO — validating business preconditions after the
+   * uploaded to disk — validating business preconditions after the
    * (slow, external, non-transactional) upload has already happened wastes
    * the upload and turns unrelated infra failures into misleading 500s
    * instead of the intended clean 400 (see docs/known-issues.md 2026-08-15).
    */
-  async assertCanSubmitDocuments(token: string): Promise<void> {
+  async assertCanSubmitDocuments(token: string): Promise<{ organizationId: string }> {
     const link = await this.prisma.onboardingLink.findUnique({ where: { token } });
     if (!link) throw new NotFoundException('Invalid onboarding link');
     this.assertCandidateCanWrite(link.status, link.expiresAt);
@@ -549,11 +551,13 @@ export class OnboardingService {
     if (!existing.completedSteps?.includes('details')) {
       throw new BadRequestException('Please complete personal details before uploading documents');
     }
+
+    return { organizationId: link.organizationId };
   }
 
   async submitDocuments(
     token: string,
-    documents: Array<{ type: string; fileName: string; fileUrl: string }>,
+    documents: Array<{ type: string; fileName: string; fileUrl: string; fileAssetId: string }>,
     finalSubmit: boolean,
   ) {
     const link = await this.prisma.onboardingLink.findUnique({ where: { token } });

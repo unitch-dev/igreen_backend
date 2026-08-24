@@ -24,7 +24,9 @@ export { LeaveType };
  * an existing bundle).
  */
 export class LeavePolicyTypeItemDto {
-  @ApiPropertyOptional({ description: 'Existing LeavePolicyType UUID (omit when adding a new type)' })
+  @ApiPropertyOptional({
+    description: 'Existing LeavePolicyType UUID (omit when adding a new type)',
+  })
   @IsOptional()
   @IsUUID()
   id?: string;

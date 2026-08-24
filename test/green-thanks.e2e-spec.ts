@@ -114,7 +114,8 @@ describe('Green Thanks module (e2e)', () => {
       data: {
         organizationId: org.id,
         name: `gt-e2e-employee-${label}`,
-        description: 'Test employee role (profile:read + green_thanks:read/create, no leave:approve)',
+        description:
+          'Test employee role (profile:read + green_thanks:read/create, no leave:approve)',
         permissions: ['profile:read', 'green_thanks:read', 'green_thanks:create'],
         isSystemRole: false,
       },

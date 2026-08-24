@@ -91,7 +91,9 @@ export class GlobalLeaveService {
             date: row.date,
             appliesToAll: row.appliesToAll,
             createdById: row.createdById ?? undefined,
-            ...(row.zoneIds.length ? { zones: { connect: row.zoneIds.map((id) => ({ id })) } } : {}),
+            ...(row.zoneIds.length
+              ? { zones: { connect: row.zoneIds.map((id) => ({ id })) } }
+              : {}),
           },
         }),
       ),
