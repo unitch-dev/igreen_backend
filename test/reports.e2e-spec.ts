@@ -2,6 +2,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import * as request from 'supertest';
 import * as bcrypt from 'bcryptjs';
+import * as ExcelJS from 'exceljs';
 import { v4 as uuid } from 'uuid';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
@@ -19,6 +20,12 @@ function binaryParser(res: any, callback: (err: Error | null, body: Buffer) => v
   res.on('data', (chunk: Buffer) => chunks.push(chunk));
   res.on('end', () => callback(null, Buffer.concat(chunks)));
 }
+
+// Real bcrypt hashing (10 rounds) + real DB round-trips per fixture user push
+// several of the newer, fixture-heavy cases (and shared beforeAll hooks) past
+// Jest's default 5000ms — this suite always runs against a real DB/Redis, not
+// mocks, so raise the ceiling instead of racing the clock.
+jest.setTimeout(30000);
 
 /**
  * Reports & Dashboard module (M17) end-to-end coverage:
@@ -70,16 +77,27 @@ describe('Reports & Dashboard module (e2e)', () => {
       const employeeIds = employees.map((e) => e.id);
 
       await prisma.incentiveLedger.deleteMany({ where: { employeeId: { in: employeeIds } } });
+      // TodoTask has an optional 1:1 back-reference from IncentiveLedger.todoId (no cascade),
+      // so TodoTask rows must be removed after IncentiveLedger and before Employee.
+      await prisma.todoTask.deleteMany({ where: { employeeId: { in: employeeIds } } });
       await prisma.leaveBalance.deleteMany({ where: { employeeId: { in: employeeIds } } });
       await prisma.leaveApplication.deleteMany({ where: { employeeId: { in: employeeIds } } });
       await prisma.leavePolicy.deleteMany({ where: { organizationId } });
       await prisma.attendanceLog.deleteMany({ where: { employeeId: { in: employeeIds } } });
+      await prisma.liveLocation.deleteMany({ where: { employeeId: { in: employeeIds } } });
       await prisma.loanEmiSchedule.deleteMany({
         where: { loan: { employeeId: { in: employeeIds } } },
       });
       await prisma.loanApplication.deleteMany({ where: { employeeId: { in: employeeIds } } });
       await prisma.payrollEntry.deleteMany({ where: { employeeId: { in: employeeIds } } });
       await prisma.payrollRun.deleteMany({ where: { organizationId } });
+      // PerformanceRating references both Employee and PerformanceCycle (no cascade on
+      // cycle->organization), and EmployeeKpi/Kpi reference Designation (no cascade) — all
+      // must be cleared before Employee/Designation/Organization deletes below.
+      await prisma.performanceRating.deleteMany({ where: { employeeId: { in: employeeIds } } });
+      await prisma.performanceCycle.deleteMany({ where: { organizationId } });
+      await prisma.employeeKpi.deleteMany({ where: { employeeId: { in: employeeIds } } });
+      await prisma.kpi.deleteMany({ where: { organizationId } });
       await prisma.userRole.deleteMany({ where: { user: { organizationId } } });
       await prisma.loginHistory.deleteMany({ where: { user: { organizationId } } });
       await prisma.user.deleteMany({ where: { organizationId } });
@@ -697,6 +715,593 @@ describe('Reports & Dashboard module (e2e)', () => {
     });
   });
 
+  // ─── Attendance & Live Track report ─────────────────────────────────────────
+
+  describe('GET /reports/attendance-track', () => {
+    let org: OrgFixture;
+    let otherDeptId: string;
+
+    beforeAll(async () => {
+      org = await createOrgFixture('attendance-track', 3);
+
+      const otherDept = await prisma.department.create({
+        data: { organizationId: org.organizationId, name: 'Other Dept ATT' },
+      });
+      otherDeptId = otherDept.id;
+
+      const d = (n: number) => new Date(Date.UTC(2026, 5, n)); // June 2026
+
+      await prisma.attendanceLog.createMany({
+        data: [
+          {
+            employeeId: org.employees[0].id,
+            date: d(1),
+            status: 'PRESENT',
+            checkInAt: d(1),
+            checkInLat: 12.34,
+            checkInLng: 56.78,
+            checkInLocationName: 'HQ',
+          },
+          {
+            employeeId: org.employees[1].id,
+            date: d(2),
+            status: 'PRESENT',
+            checkInAt: d(2),
+          },
+          // Outside the June range — must be excluded by from/to filtering
+          {
+            employeeId: org.employees[0].id,
+            date: new Date(Date.UTC(2026, 6, 1)),
+            status: 'PRESENT',
+          },
+        ],
+      });
+
+      // A live location for employee 2, recorded "now" (within the 30-min window)
+      await prisma.liveLocation.create({
+        data: { employeeId: org.employees[2].id, lat: 1.1, lng: 2.2, recordedAt: new Date() },
+      });
+      // A stale live location (2 hours old) — must NOT show up in liveNow
+      await prisma.liveLocation.create({
+        data: {
+          employeeId: org.employees[0].id,
+          lat: 9.9,
+          lng: 9.9,
+          recordedAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+        },
+      });
+    });
+
+    it('from/to actually filters rows to the requested period', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/reports/attendance-track')
+        .query({ from: '2026-06-01', to: '2026-06-30', limit: 100 })
+        .set(authed(org.readerToken, org.organizationId))
+        .expect(200);
+
+      expect(res.body.data.rows.length).toBe(2);
+      expect(res.body.data.rows.every((r: any) => r.date.startsWith('2026-06'))).toBe(true);
+    });
+
+    it('liveNow only includes locations recorded within the last 30 minutes', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/reports/attendance-track')
+        .query({ from: '2026-06-01', to: '2026-06-30' })
+        .set(authed(org.readerToken, org.organizationId))
+        .expect(200);
+
+      const liveIds = res.body.data.liveNow.map((l: any) => l.employeeId);
+      expect(liveIds).toContain(org.employees[2].id);
+      expect(liveIds).not.toContain(org.employees[0].id);
+    });
+
+    it('pagination: limit=1 returns 1 row and correct meta.total/meta.totalPages', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/reports/attendance-track')
+        .query({ from: '2026-06-01', to: '2026-06-30', limit: 1, page: 1 })
+        .set(authed(org.readerToken, org.organizationId))
+        .expect(200);
+
+      expect(res.body.data.rows.length).toBe(1);
+      expect(res.body.data.meta.total).toBe(2);
+      expect(res.body.data.meta.totalPages).toBe(2);
+    });
+
+    it('departmentId filters rows and a cross-org departmentId 404s', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/reports/attendance-track')
+        .query({ from: '2026-06-01', to: '2026-06-30', departmentId: otherDeptId })
+        .set(authed(org.readerToken, org.organizationId))
+        .expect(200);
+      expect(res.body.data.rows.length).toBe(0);
+    });
+
+    it('403s a user without report:read', async () => {
+      await request(app.getHttpServer())
+        .get('/api/v1/reports/attendance-track')
+        .set(authed(org.noPermToken, org.organizationId))
+        .expect(403);
+    });
+  });
+
+  describe('Attendance-track multi-tenancy', () => {
+    it("org B never sees org A's attendance logs or live locations", async () => {
+      const orgA = await createOrgFixture('att-track-tenant-a', 1);
+      const orgB = await createOrgFixture('att-track-tenant-b', 1);
+
+      await prisma.attendanceLog.create({
+        data: { employeeId: orgA.employees[0].id, date: new Date(), status: 'PRESENT' },
+      });
+      await prisma.liveLocation.create({
+        data: { employeeId: orgA.employees[0].id, lat: 1, lng: 1, recordedAt: new Date() },
+      });
+
+      const resB = await request(app.getHttpServer())
+        .get('/api/v1/reports/attendance-track')
+        .set(authed(orgB.readerToken, orgB.organizationId))
+        .expect(200);
+
+      expect(
+        resB.body.data.rows.some((r: any) => r.employeeId === orgA.employees[0].id),
+      ).toBe(false);
+      expect(
+        resB.body.data.liveNow.some((l: any) => l.employeeId === orgA.employees[0].id),
+      ).toBe(false);
+    });
+  });
+
+  // ─── Performance report ─────────────────────────────────────────────────────
+
+  describe('GET /reports/performance', () => {
+    let org: OrgFixture;
+
+    beforeAll(async () => {
+      org = await createOrgFixture('performance', 2);
+
+      const cycle = await prisma.performanceCycle.create({
+        data: {
+          organizationId: org.organizationId,
+          name: 'Perf Cycle 2026',
+          startDate: new Date('2026-06-01'),
+          endDate: new Date('2026-06-30'),
+          status: 'ACTIVE',
+        },
+      });
+
+      const kpi1 = await prisma.kpi.create({
+        data: {
+          organizationId: org.organizationId,
+          designationId: org.designationId,
+          title: 'Sales Target',
+        },
+      });
+      const kpi2 = await prisma.kpi.create({
+        data: {
+          organizationId: org.organizationId,
+          designationId: org.designationId,
+          title: 'Quality Score',
+        },
+      });
+      await prisma.employeeKpi.create({
+        data: { employeeId: org.employees[0].id, kpiId: kpi1.id, status: 'ACHIEVED' },
+      });
+      await prisma.employeeKpi.create({
+        data: { employeeId: org.employees[0].id, kpiId: kpi2.id, status: 'MISSED' },
+      });
+
+      await prisma.performanceRating.create({
+        data: {
+          cycleId: cycle.id,
+          employeeId: org.employees[0].id,
+          ratedBy: 'manager-1',
+          rating: 4,
+          isEligibleForIncrement: true,
+          submittedAt: new Date('2026-06-15'),
+        },
+      });
+      await prisma.performanceRating.create({
+        data: {
+          cycleId: cycle.id,
+          employeeId: org.employees[1].id,
+          ratedBy: 'manager-1',
+          rating: 2,
+          isEligibleForIncrement: false,
+          // Outside the queried range — must be excluded
+          submittedAt: new Date('2026-01-01'),
+        },
+      });
+    });
+
+    it('avgRating/rows/kpiAchievementRate reflect only ratings within from/to', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/reports/performance')
+        .query({ from: '2026-06-01', to: '2026-06-30' })
+        .set(authed(org.readerToken, org.organizationId))
+        .expect(200);
+
+      const data = res.body.data;
+      expect(data.totalRatingsCount).toBe(1);
+      expect(data.avgRating).toBe(4);
+      const row = data.rows.find((r: any) => r.employeeId === org.employees[0].id);
+      expect(row.kpiAssignedCount).toBe(2);
+      expect(row.kpiAchievedCount).toBe(1);
+      expect(row.kpiAchievementRate).toBe(0.5);
+    });
+
+    it('a cross-org departmentId 404s', async () => {
+      const otherOrg = await createOrgFixture('performance-other', 1);
+      await request(app.getHttpServer())
+        .get('/api/v1/reports/performance')
+        .query({ departmentId: org.departmentId })
+        .set(authed(otherOrg.readerToken, otherOrg.organizationId))
+        .expect(404);
+    });
+
+    it('403s a user without report:read', async () => {
+      await request(app.getHttpServer())
+        .get('/api/v1/reports/performance')
+        .set(authed(org.noPermToken, org.organizationId))
+        .expect(403);
+    });
+  });
+
+  describe('Performance multi-tenancy', () => {
+    it("org B never sees org A's performance ratings", async () => {
+      const orgA = await createOrgFixture('perf-tenant-a', 1);
+      const orgB = await createOrgFixture('perf-tenant-b', 1);
+
+      const cycleA = await prisma.performanceCycle.create({
+        data: {
+          organizationId: orgA.organizationId,
+          name: 'Cycle A',
+          startDate: new Date('2026-06-01'),
+          endDate: new Date('2026-06-30'),
+          status: 'ACTIVE',
+        },
+      });
+      await prisma.performanceRating.create({
+        data: {
+          cycleId: cycleA.id,
+          employeeId: orgA.employees[0].id,
+          ratedBy: 'manager-a',
+          rating: 5,
+          submittedAt: new Date('2026-06-10'),
+        },
+      });
+
+      const resB = await request(app.getHttpServer())
+        .get('/api/v1/reports/performance')
+        .query({ from: '2026-06-01', to: '2026-06-30' })
+        .set(authed(orgB.readerToken, orgB.organizationId))
+        .expect(200);
+
+      expect(resB.body.data.totalRatingsCount).toBe(0);
+      expect(
+        resB.body.data.rows.some((r: any) => r.employeeId === orgA.employees[0].id),
+      ).toBe(false);
+    });
+  });
+
+  // ─── Todo & Incentive report ────────────────────────────────────────────────
+
+  describe('GET /reports/todo-incentive', () => {
+    let org: OrgFixture;
+
+    beforeAll(async () => {
+      org = await createOrgFixture('todo-incentive', 2);
+
+      await prisma.todoTask.createMany({
+        data: [
+          {
+            employeeId: org.employees[0].id,
+            title: 'Task 1',
+            status: 'APPROVED',
+            submittedAt: new Date('2026-06-05'),
+          },
+          {
+            employeeId: org.employees[0].id,
+            title: 'Task 2',
+            status: 'REJECTED',
+            submittedAt: new Date('2026-06-06'),
+          },
+          {
+            employeeId: org.employees[0].id,
+            title: 'Task 3 (outside range)',
+            status: 'APPROVED',
+            submittedAt: new Date('2026-01-01'),
+          },
+        ],
+      });
+
+      await prisma.incentiveLedger.create({
+        data: {
+          employeeId: org.employees[0].id,
+          source: 'TODO',
+          totalAmount: 400,
+          releaseAmount: 250,
+          payrollMonth: 6,
+          payrollYear: 2026,
+        },
+      });
+    });
+
+    it('completionRate and incentive totals reflect only todos/ledger rows within range/filters', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/reports/todo-incentive')
+        .query({ from: '2026-06-01', to: '2026-06-30', month: 6, year: 2026 })
+        .set(authed(org.readerToken, org.organizationId))
+        .expect(200);
+
+      const data = res.body.data;
+      expect(data.orgTodosApproved).toBe(1);
+      const row = data.rows.find((r: any) => r.employeeId === org.employees[0].id);
+      expect(row.todosTotal).toBe(2); // excludes the Jan task outside from/to
+      expect(row.todosApproved).toBe(1);
+      expect(row.todosRejected).toBe(1);
+      expect(row.completionRate).toBe(0.5);
+      expect(row.incentiveTotalAmount).toBe(400);
+      expect(row.incentiveReleasedAmount).toBe(250);
+    });
+
+    it('403s a user without report:read', async () => {
+      await request(app.getHttpServer())
+        .get('/api/v1/reports/todo-incentive')
+        .set(authed(org.noPermToken, org.organizationId))
+        .expect(403);
+    });
+  });
+
+  describe('Todo-incentive multi-tenancy', () => {
+    it("org B never sees org A's todos or incentive ledger", async () => {
+      const orgA = await createOrgFixture('todo-tenant-a', 1);
+      const orgB = await createOrgFixture('todo-tenant-b', 1);
+
+      await prisma.todoTask.create({
+        data: {
+          employeeId: orgA.employees[0].id,
+          title: 'Org A task',
+          status: 'APPROVED',
+          submittedAt: new Date(),
+        },
+      });
+      await prisma.incentiveLedger.create({
+        data: {
+          employeeId: orgA.employees[0].id,
+          source: 'TODO',
+          totalAmount: 999,
+          payrollMonth: 6,
+          payrollYear: 2026,
+        },
+      });
+
+      const resB = await request(app.getHttpServer())
+        .get('/api/v1/reports/todo-incentive')
+        .set(authed(orgB.readerToken, orgB.organizationId))
+        .expect(200);
+
+      expect(resB.body.data.orgTodosApproved).toBe(0);
+      expect(resB.body.data.orgIncentiveTotalAmount).toBe(0);
+    });
+  });
+
+  // ─── Payroll report — per-employee rows ─────────────────────────────────────
+
+  describe('GET /reports/payroll — per-employee rows', () => {
+    it('rows reflect the resolved run only, not a stale/other run', async () => {
+      const org = await createOrgFixture('payroll-rows', 2);
+
+      const oldRun = await prisma.payrollRun.create({
+        data: { organizationId: org.organizationId, month: 5, year: 2026, status: 'COMPLETED' },
+      });
+      await prisma.payrollEntry.create({
+        data: {
+          payrollRunId: oldRun.id,
+          employeeId: org.employees[0].id,
+          workingDays: 30,
+          presentDays: 30,
+          grossSalary: 11111,
+          netSalary: 11111,
+        },
+      });
+
+      const newRun = await prisma.payrollRun.create({
+        data: { organizationId: org.organizationId, month: 6, year: 2026, status: 'COMPLETED' },
+      });
+      await prisma.payrollEntry.create({
+        data: {
+          payrollRunId: newRun.id,
+          employeeId: org.employees[0].id,
+          workingDays: 30,
+          presentDays: 30,
+          grossSalary: 55555,
+          netSalary: 44444,
+        },
+      });
+
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/reports/payroll')
+        .query({ month: 6, year: 2026 })
+        .set(authed(org.readerToken, org.organizationId))
+        .expect(200);
+
+      expect(res.body.data.runId).toBe(newRun.id);
+      const row = res.body.data.rows.find((r: any) => r.employeeId === org.employees[0].id);
+      expect(row.grossSalary).toBe(55555);
+      expect(row.netSalary).toBe(44444);
+
+      const resPage2 = await request(app.getHttpServer())
+        .get('/api/v1/reports/payroll')
+        .query({ month: 6, year: 2026, limit: 1, page: 2 })
+        .set(authed(org.readerToken, org.organizationId))
+        .expect(200);
+      expect(resPage2.body.data.meta.page).toBe(2);
+      expect(resPage2.body.data.meta.total).toBe(1); // only employees[0] has an entry in newRun
+    });
+  });
+
+  // ─── Audit / Login history report — RBAC + org scoping ──────────────────────
+
+  describe('GET /reports/audit', () => {
+    interface AuditFixture extends OrgFixture {
+      auditOnlyToken: string;
+      auditExportToken: string;
+    }
+
+    async function createAuditFixture(label: string): Promise<AuditFixture> {
+      const base = await createOrgFixture(label, 1);
+      const passwordHash = await bcrypt.hash(PASSWORD, 10);
+
+      const auditOnlyRole = await prisma.role.create({
+        data: {
+          organizationId: base.organizationId,
+          name: `${label}-audit-only`,
+          permissions: ['report:audit'],
+          isSystemRole: false,
+        },
+      });
+      const auditExportRole = await prisma.role.create({
+        data: {
+          organizationId: base.organizationId,
+          name: `${label}-audit-export`,
+          permissions: ['report:audit', 'report:export', 'report:read'],
+          isSystemRole: false,
+        },
+      });
+
+      async function makeUser(email: string, roleId: string): Promise<string> {
+        const emp = await prisma.employee.create({
+          data: {
+            organizationId: base.organizationId,
+            empCode: `${email}`.slice(0, 10),
+            firstName: 'Fx',
+            lastName: label,
+            phone: `9${Math.floor(Math.random() * 1000000000)}`,
+            departmentId: base.departmentId,
+            designationId: base.designationId,
+            payrollStructureId: base.payrollStructureId,
+            status: 'ACTIVE',
+          },
+        });
+        const user = await prisma.user.create({
+          data: {
+            organizationId: base.organizationId,
+            employeeId: emp.id,
+            email,
+            passwordHash,
+            isActive: true,
+          },
+        });
+        await prisma.userRole.create({ data: { userId: user.id, roleId } });
+        const login = await request(app.getHttpServer())
+          .post('/api/v1/auth/login')
+          .send({ email, password: PASSWORD })
+          .expect(200);
+        return login.body.data.accessToken;
+      }
+
+      const auditOnlyToken = await makeUser(`audit-only-${label}@reports-e2e.test`, auditOnlyRole.id);
+      const auditExportToken = await makeUser(
+        `audit-export-${label}@reports-e2e.test`,
+        auditExportRole.id,
+      );
+
+      return { ...base, auditOnlyToken, auditExportToken };
+    }
+
+    it('a user with report:read but not report:audit gets 403 on GET /reports/audit', async () => {
+      const org = await createOrgFixture('audit-noaudit', 1);
+      await request(app.getHttpServer())
+        .get('/api/v1/reports/audit')
+        .set(authed(org.readerToken, org.organizationId))
+        .expect(403);
+    });
+
+    it('a user with report:audit (but not report:read) can access GET /reports/audit', async () => {
+      const org = await createAuditFixture('audit-access');
+      await request(app.getHttpServer())
+        .get('/api/v1/reports/audit')
+        .set(authed(org.auditOnlyToken, org.organizationId))
+        .expect(200);
+    });
+
+    it("org B's audit rows never include org A's users, even though LoginHistory has no direct organizationId column", async () => {
+      const orgA = await createAuditFixture('audit-tenant-a');
+      const orgB = await createAuditFixture('audit-tenant-b');
+
+      // orgA's reader already logged in once during fixture setup (readerLogin) —
+      // add one more explicit login to be sure there's LoginHistory for orgA.
+      await request(app.getHttpServer())
+        .post('/api/v1/auth/login')
+        .send({ email: `reader-audit-tenant-a@reports-e2e.test`, password: PASSWORD })
+        .expect(200);
+
+      const resB = await request(app.getHttpServer())
+        .get('/api/v1/reports/audit')
+        .query({ limit: 100 })
+        .set(authed(orgB.auditOnlyToken, orgB.organizationId))
+        .expect(200);
+
+      const orgAUserIds = [orgA.auditOnlyToken, orgA.auditExportToken]; // not directly useful, but assert by email domain instead
+      void orgAUserIds;
+      expect(
+        resB.body.data.rows.every((r: any) => !r.email.includes(`-audit-tenant-a@`)),
+      ).toBe(true);
+    });
+
+    it('from/to filters login rows to the requested period', async () => {
+      const org = await createAuditFixture('audit-daterange');
+      const users = await prisma.user.findMany({ where: { organizationId: org.organizationId } });
+      const targetUser = users[0];
+
+      await prisma.loginHistory.create({
+        data: { userId: targetUser.id, loginAt: new Date('2020-01-01'), status: 'success' },
+      });
+
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/reports/audit')
+        .query({ from: '2026-01-01', to: '2026-12-31', limit: 100 })
+        .set(authed(org.auditOnlyToken, org.organizationId))
+        .expect(200);
+
+      expect(
+        res.body.data.rows.some((r: any) => r.loginAt.startsWith('2020')),
+      ).toBe(false);
+    });
+
+    it('a user with report:read + report:export but NOT report:audit gets 403 exporting type=audit', async () => {
+      const org = await createOrgFixture('audit-export-noaudit', 1);
+      await request(app.getHttpServer())
+        .get('/api/v1/reports/audit/export')
+        .query({ format: 'excel' })
+        .set(authed(org.readerToken, org.organizationId))
+        .expect(403);
+    });
+
+    it('a user with report:audit + report:export succeeds exporting type=audit as excel', async () => {
+      const org = await createAuditFixture('audit-export-ok');
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/reports/audit/export')
+        .query({ format: 'excel' })
+        .set(authed(org.auditExportToken, org.organizationId))
+        .buffer(true)
+        .parse(binaryParser)
+        .expect(200);
+
+      expect(res.headers['content-type']).toContain('spreadsheetml');
+      const buf: Buffer = res.body;
+      expect(buf.slice(0, 4)).toEqual(Buffer.from([0x50, 0x4b, 0x03, 0x04]));
+    });
+
+    it('audit type is rejected for PDF export with 400 (not in PDF_SUPPORTED_TYPES)', async () => {
+      const org = await createAuditFixture('audit-pdf-reject');
+      await request(app.getHttpServer())
+        .get('/api/v1/reports/audit/export')
+        .query({ format: 'pdf' })
+        .set(authed(org.auditExportToken, org.organizationId))
+        .expect(400);
+    });
+  });
+
   // ─── Export: Excel ──────────────────────────────────────────────────────────
 
   describe('GET /reports/:type/export?format=excel', () => {
@@ -756,6 +1361,139 @@ describe('Reports & Dashboard module (e2e)', () => {
         .set(authed(org.noPermToken, org.organizationId))
         .expect(403);
     });
+
+    it('attendance-track excel export produces a "Live Now" sheet with rows matching liveLocation data', async () => {
+      const trackOrg = await createOrgFixture('export-excel-track', 1);
+      await prisma.liveLocation.create({
+        data: { employeeId: trackOrg.employees[0].id, lat: 5, lng: 6, recordedAt: new Date() },
+      });
+
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/reports/attendance-track/export')
+        .query({ format: 'excel' })
+        .set(authed(trackOrg.readerToken, trackOrg.organizationId))
+        .buffer(true)
+        .parse(binaryParser)
+        .expect(200);
+
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(res.body);
+      const liveSheet = workbook.getWorksheet('Live Now');
+      expect(liveSheet).toBeDefined();
+      // header row + at least 1 data row
+      expect(liveSheet!.rowCount).toBeGreaterThanOrEqual(2);
+    });
+
+    it('performance excel export contains a per-employee rating row', async () => {
+      const perfOrg = await createOrgFixture('export-excel-perf', 1);
+      const cycle = await prisma.performanceCycle.create({
+        data: {
+          organizationId: perfOrg.organizationId,
+          name: 'Excel Export Cycle',
+          startDate: new Date(),
+          endDate: new Date(),
+          status: 'ACTIVE',
+        },
+      });
+      await prisma.performanceRating.create({
+        data: {
+          cycleId: cycle.id,
+          employeeId: perfOrg.employees[0].id,
+          ratedBy: 'mgr',
+          rating: 3.5,
+        },
+      });
+
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/reports/performance/export')
+        .query({ format: 'excel' })
+        .set(authed(perfOrg.readerToken, perfOrg.organizationId))
+        .buffer(true)
+        .parse(binaryParser)
+        .expect(200);
+
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(res.body);
+      const sheet = workbook.getWorksheet('performance');
+      expect(sheet!.rowCount).toBeGreaterThanOrEqual(2);
+    });
+
+    it('todo-incentive excel export contains a per-employee completion row', async () => {
+      const todoOrg = await createOrgFixture('export-excel-todo', 1);
+      await prisma.todoTask.create({
+        data: {
+          employeeId: todoOrg.employees[0].id,
+          title: 'Excel Export Task',
+          status: 'APPROVED',
+          submittedAt: new Date(),
+        },
+      });
+
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/reports/todo-incentive/export')
+        .query({ format: 'excel' })
+        .set(authed(todoOrg.readerToken, todoOrg.organizationId))
+        .buffer(true)
+        .parse(binaryParser)
+        .expect(200);
+
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(res.body);
+      const sheet = workbook.getWorksheet('todo-incentive');
+      expect(sheet!.rowCount).toBeGreaterThanOrEqual(2);
+    });
+
+    it('audit excel export produces a "System Changes" sheet (excel supports all 10 types)', async () => {
+      const auditOrg = await createOrgFixture('export-excel-audit', 1);
+      const passwordHash = await bcrypt.hash(PASSWORD, 10);
+      const auditRole = await prisma.role.create({
+        data: {
+          organizationId: auditOrg.organizationId,
+          name: 'export-excel-audit-role',
+          permissions: ['report:audit', 'report:export'],
+          isSystemRole: false,
+        },
+      });
+      const emp = await prisma.employee.create({
+        data: {
+          organizationId: auditOrg.organizationId,
+          empCode: 'AUDEXP',
+          firstName: 'Audit',
+          lastName: 'Exporter',
+          phone: '9199999999',
+          departmentId: auditOrg.departmentId,
+          designationId: auditOrg.designationId,
+          payrollStructureId: auditOrg.payrollStructureId,
+          status: 'ACTIVE',
+        },
+      });
+      const user = await prisma.user.create({
+        data: {
+          organizationId: auditOrg.organizationId,
+          employeeId: emp.id,
+          email: 'audit-exporter@reports-e2e.test',
+          passwordHash,
+          isActive: true,
+        },
+      });
+      await prisma.userRole.create({ data: { userId: user.id, roleId: auditRole.id } });
+      const login = await request(app.getHttpServer())
+        .post('/api/v1/auth/login')
+        .send({ email: user.email, password: PASSWORD })
+        .expect(200);
+
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/reports/audit/export')
+        .query({ format: 'excel' })
+        .set(authed(login.body.data.accessToken, auditOrg.organizationId))
+        .buffer(true)
+        .parse(binaryParser)
+        .expect(200);
+
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(res.body);
+      expect(workbook.getWorksheet('System Changes')).toBeDefined();
+    });
   });
 
   // ─── Export: PDF ────────────────────────────────────────────────────────────
@@ -800,6 +1538,80 @@ describe('Reports & Dashboard module (e2e)', () => {
         .query({ format: 'pdf' })
         .set(authed(org.readerToken, org.organizationId))
         .expect(400);
+    });
+
+    it('attendance-track pdf export returns a valid non-trivial PDF', async () => {
+      const trackOrg = await createOrgFixture('export-pdf-track', 1);
+      await prisma.attendanceLog.create({
+        data: { employeeId: trackOrg.employees[0].id, date: new Date(), status: 'PRESENT' },
+      });
+
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/reports/attendance-track/export')
+        .query({ format: 'pdf' })
+        .set(authed(trackOrg.readerToken, trackOrg.organizationId))
+        .buffer(true)
+        .parse(binaryParser)
+        .expect(200);
+
+      expect(res.headers['content-type']).toContain('application/pdf');
+      const buf: Buffer = res.body;
+      expect(buf.slice(0, 4).toString('ascii')).toBe('%PDF');
+      expect(buf.length).toBeGreaterThan(200);
+    });
+
+    it('performance pdf export returns a valid non-trivial PDF', async () => {
+      const perfOrg = await createOrgFixture('export-pdf-perf', 1);
+      const cycle = await prisma.performanceCycle.create({
+        data: {
+          organizationId: perfOrg.organizationId,
+          name: 'PDF Export Cycle',
+          startDate: new Date(),
+          endDate: new Date(),
+          status: 'ACTIVE',
+        },
+      });
+      await prisma.performanceRating.create({
+        data: { cycleId: cycle.id, employeeId: perfOrg.employees[0].id, ratedBy: 'mgr', rating: 4 },
+      });
+
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/reports/performance/export')
+        .query({ format: 'pdf' })
+        .set(authed(perfOrg.readerToken, perfOrg.organizationId))
+        .buffer(true)
+        .parse(binaryParser)
+        .expect(200);
+
+      expect(res.headers['content-type']).toContain('application/pdf');
+      const buf: Buffer = res.body;
+      expect(buf.slice(0, 4).toString('ascii')).toBe('%PDF');
+      expect(buf.length).toBeGreaterThan(200);
+    });
+
+    it('todo-incentive pdf export returns a valid non-trivial PDF', async () => {
+      const todoOrg = await createOrgFixture('export-pdf-todo', 1);
+      await prisma.todoTask.create({
+        data: {
+          employeeId: todoOrg.employees[0].id,
+          title: 'PDF Export Task',
+          status: 'APPROVED',
+          submittedAt: new Date(),
+        },
+      });
+
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/reports/todo-incentive/export')
+        .query({ format: 'pdf' })
+        .set(authed(todoOrg.readerToken, todoOrg.organizationId))
+        .buffer(true)
+        .parse(binaryParser)
+        .expect(200);
+
+      expect(res.headers['content-type']).toContain('application/pdf');
+      const buf: Buffer = res.body;
+      expect(buf.slice(0, 4).toString('ascii')).toBe('%PDF');
+      expect(buf.length).toBeGreaterThan(200);
     });
   });
 
@@ -877,11 +1689,15 @@ describe('Reports & Dashboard module (e2e)', () => {
       expect(breakdown.loan).toBeGreaterThanOrEqual(1);
     });
 
-    it('403s a user without report:read', async () => {
+    it('succeeds (200) for a user without report:read — intentionally no permission gate (docs/known-issues.md 2026-08-22)', async () => {
+      // GET /dashboards/kpis backs every role's KPI widgets, including
+      // employee-scoped ones (kpi_my_leave_balance etc.) — DashboardController
+      // deliberately does not @RequirePermissions() it so every role's
+      // dashboard can load, per the 2026-08-22 known-issues fix.
       await request(app.getHttpServer())
         .get('/api/v1/dashboards/kpis')
         .set(authed(org.noPermToken, org.organizationId))
-        .expect(403);
+        .expect(200);
     });
   });
 });

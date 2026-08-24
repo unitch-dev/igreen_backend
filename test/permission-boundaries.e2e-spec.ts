@@ -226,6 +226,26 @@ describe('Permission boundaries + edge cases (e2e)', () => {
         path: '/api/v1/reports/headcount',
       },
       {
+        label: 'GET /reports/attendance-track (report:read)',
+        method: 'get',
+        path: '/api/v1/reports/attendance-track',
+      },
+      {
+        label: 'GET /reports/performance (report:read)',
+        method: 'get',
+        path: '/api/v1/reports/performance',
+      },
+      {
+        label: 'GET /reports/todo-incentive (report:read)',
+        method: 'get',
+        path: '/api/v1/reports/todo-incentive',
+      },
+      {
+        label: 'GET /reports/audit (report:audit, separate from report:read)',
+        method: 'get',
+        path: '/api/v1/reports/audit',
+      },
+      {
         label: 'PUT /organization (org:update)',
         method: 'put',
         path: '/api/v1/organization',

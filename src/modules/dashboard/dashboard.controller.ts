@@ -9,6 +9,8 @@ import { DashboardService } from './dashboard.service';
 import { CreateDashboardDto } from './dto/create-dashboard.dto';
 import { UpdateDashboardDto } from './dto/update-dashboard.dto';
 import { DashboardKpisDto } from './dto/dashboard-kpis.dto';
+import { DashboardLoanLeaveSummaryDto } from './dto/dashboard-loan-leave-summary.dto';
+import { DashboardAdminAlertsDto } from './dto/dashboard-admin-alerts.dto';
 
 @ApiTags('Dashboards')
 @ApiBearerAuth()
@@ -59,6 +61,76 @@ export class DashboardController {
   getKpis(@Request() req) {
     const { id, organizationId } = req.user;
     return this.service.getKpis(organizationId, id);
+  }
+
+  @Get('loan-leave-summary')
+  @RequirePermissions('loan:read', 'leave:read')
+  @ApiOperation({
+    summary: 'Get org-level loan and leave aggregate summary',
+    description:
+      'Backs the Admin Dashboard `table_loan_leave_summary` widget. Returns, org-scoped: ' +
+      'pending LoanApplication count + total requested amount, ACTIVE LoanApplication count + ' +
+      'total outstanding balance (sum of the next undeducted LoanEmiSchedule.outstandingBalance ' +
+      "per ACTIVE loan, mirroring LoansService.getOutstandingBalanceForEmployee's modeling); " +
+      'and pending LeaveApplication count, distinct employees on APPROVED leave today, and ' +
+      'distinct employees on APPROVED leave at any point in the current ISO week ' +
+      '(Monday-Sunday, UTC). Requires both loan:read and leave:read (AND logic).',
+  })
+  @ApiSuccessResponse(DashboardLoanLeaveSummaryDto, 'Loan and leave summary')
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden — missing required permissions: loan:read, leave:read',
+    schema: {
+      example: {
+        success: false,
+        message: 'Missing required permissions: loan:read, leave:read',
+        error: {
+          message: 'Missing required permissions: loan:read, leave:read',
+          statusCode: 403,
+          path: '/api/v1/dashboards/loan-leave-summary',
+          method: 'GET',
+        },
+        errorType: 'HTTP_403',
+        httpCode: 403,
+      },
+    },
+  })
+  getLoanLeaveSummary(@Request() req) {
+    return this.service.getLoanLeaveSummary(req.user.organizationId);
+  }
+
+  @Get('admin-alerts')
+  @RequirePermissions('onboarding:manage')
+  @ApiOperation({
+    summary: 'Get admin alert aggregates (expiring onboarding links + pending approvals)',
+    description:
+      'Backs the Admin Dashboard `list_notifications` widget. Returns, org-scoped: the count ' +
+      'and top-5-soonest-expiring list of OnboardingLink rows with status PENDING or ' +
+      'IN_PROGRESS whose expiresAt falls within the next 7 days, plus the same pending-' +
+      "approvals breakdown (leave/loan/serviceRequest/todo) computed by GET /dashboards/kpis's " +
+      'kpi_pending_approvals_breakdown. Requires onboarding:manage.',
+  })
+  @ApiSuccessResponse(DashboardAdminAlertsDto, 'Admin alerts summary')
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden — missing required permission: onboarding:manage',
+    schema: {
+      example: {
+        success: false,
+        message: 'Missing required permissions: onboarding:manage',
+        error: {
+          message: 'Missing required permissions: onboarding:manage',
+          statusCode: 403,
+          path: '/api/v1/dashboards/admin-alerts',
+          method: 'GET',
+        },
+        errorType: 'HTTP_403',
+        httpCode: 403,
+      },
+    },
+  })
+  getAdminAlerts(@Request() req) {
+    return this.service.getAdminAlerts(req.user.organizationId);
   }
 
   @Get()

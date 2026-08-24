@@ -1,6 +1,15 @@
-import { BadRequestException, Controller, Get, Param, Query, Res } from '@nestjs/common';
+import {
+  BadRequestException,
+  Controller,
+  ForbiddenException,
+  Get,
+  Param,
+  Query,
+  Res,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
+import { CurrentUser } from '@common/decorators/current-user.decorator';
 import { OrganizationId } from '@common/decorators/organization.decorator';
 import { RequirePermissions } from '@common/decorators/permissions.decorator';
 import {
@@ -16,6 +25,10 @@ import { LeaveReportDto } from './dto/leave-report.dto';
 import { PayrollReportDto } from './dto/payroll-report.dto';
 import { LoanReportDto } from './dto/loan-report.dto';
 import { IncentiveReportDto } from './dto/incentive-report.dto';
+import { AttendanceTrackReportDto } from './dto/attendance-track-report.dto';
+import { PerformanceReportDto } from './dto/performance-report.dto';
+import { TodoIncentiveReportDto } from './dto/todo-incentive-report.dto';
+import { AuditHistoryReportDto } from './dto/audit-history-report.dto';
 
 @ApiTags('Reports')
 @ApiBearerAuth()
@@ -92,25 +105,82 @@ export class ReportsController {
     return this.reportsService.incentives(organizationId, query);
   }
 
+  @Get('attendance-track')
+  @RequirePermissions('report:read')
+  @ApiOperation({
+    summary: 'Attendance & live track report',
+    description:
+      'Paginated attendance log rows (with check-in/out geolocation) plus a snapshot of the ' +
+      'latest live location per employee recorded within the last 30 minutes.',
+  })
+  @ApiSuccessResponse(AttendanceTrackReportDto, 'Attendance & live track report')
+  attendanceTrack(@OrganizationId() organizationId: string, @Query() query: QueryReportDto) {
+    return this.reportsService.attendanceTrack(organizationId, query);
+  }
+
+  @Get('performance')
+  @RequirePermissions('report:read')
+  @ApiOperation({
+    summary: 'Performance report',
+    description:
+      'Per-employee performance ratings for the period plus KPI assignment/achievement stats.',
+  })
+  @ApiSuccessResponse(PerformanceReportDto, 'Performance report')
+  performance(@OrganizationId() organizationId: string, @Query() query: QueryReportDto) {
+    return this.reportsService.performance(organizationId, query);
+  }
+
+  @Get('todo-incentive')
+  @RequirePermissions('report:read')
+  @ApiOperation({
+    summary: 'Todo & incentive report',
+    description: 'Per-employee todo completion stats correlated with incentive ledger payouts.',
+  })
+  @ApiSuccessResponse(TodoIncentiveReportDto, 'Todo & incentive report')
+  todoIncentive(@OrganizationId() organizationId: string, @Query() query: QueryReportDto) {
+    return this.reportsService.todoIncentive(organizationId, query);
+  }
+
+  @Get('audit')
+  @RequirePermissions('report:audit')
+  @ApiOperation({
+    summary: 'Audit — login & system-change history',
+    description:
+      'Per-user login history (with device/IP info) plus a best-effort AuditLog system-change ' +
+      'feed. Security-sensitive — gated by the dedicated report:audit permission, not report:read.',
+  })
+  @ApiSuccessResponse(AuditHistoryReportDto, 'Audit history report')
+  auditHistory(@OrganizationId() organizationId: string, @Query() query: QueryReportDto) {
+    return this.reportsService.auditHistory(organizationId, query);
+  }
+
   @Get(':type/export')
   @RequirePermissions('report:export')
   @ApiOperation({
     summary: 'Export a report as Excel or PDF',
     description:
       'Streams a binary file (bypasses the response envelope). Excel is supported for all ' +
-      'report types; PDF is currently only implemented for the payroll report.',
+      'report types; PDF is implemented for payroll, attendance-track, performance, and ' +
+      'todo-incentive. Exporting type=audit additionally requires the report:audit permission.',
   })
   @ApiParam({ name: 'type', enum: REPORT_TYPES })
   async exportReport(
     @OrganizationId() organizationId: string,
     @Param('type') type: string,
     @Query() query: ExportReportDto,
+    @CurrentUser('permissions') callerPermissions: string[],
     @Res() res: Response,
   ) {
     if (!REPORT_TYPES.includes(type as ReportType)) {
       throw new BadRequestException(
         `Unknown report type '${type}'. Expected one of: ${REPORT_TYPES.join(', ')}`,
       );
+    }
+
+    const hasAuditPermission =
+      callerPermissions?.includes('*') || callerPermissions?.includes('report:audit');
+    if (type === 'audit' && !hasAuditPermission) {
+      throw new ForbiddenException('Missing required permission: report:audit');
     }
 
     const { buffer, filename, contentType } = await this.reportsService.export(

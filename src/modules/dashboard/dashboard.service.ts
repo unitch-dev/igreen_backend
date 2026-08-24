@@ -4,6 +4,7 @@ import {
   EmployeeStatus,
   LeaveStatus,
   LoanStatus,
+  OnboardingStatus,
   ServiceRequestStatus,
   TodoStatus,
 } from '@prisma/client';
@@ -11,6 +12,8 @@ import { PrismaService } from '@prisma/prisma.service';
 import { CreateDashboardDto } from './dto/create-dashboard.dto';
 import { UpdateDashboardDto } from './dto/update-dashboard.dto';
 import { DashboardKpisDto } from './dto/dashboard-kpis.dto';
+import { DashboardLoanLeaveSummaryDto } from './dto/dashboard-loan-leave-summary.dto';
+import { DashboardAdminAlertsDto } from './dto/dashboard-admin-alerts.dto';
 
 export interface DefaultWidget {
   widgetType: string;
@@ -447,4 +450,183 @@ export class DashboardService {
       kpi_my_performance: myPerformance,
     };
   }
+
+  // ─── Admin Dashboard: table_loan_leave_summary / list_notifications widgets ──
+
+  /**
+   * Aggregates the data backing the Admin Dashboard's `table_loan_leave_summary`
+   * widget. Org-scoped (via `employee: { organizationId, deletedAt: null }`,
+   * matching getKpis()'s convention).
+   */
+  async getLoanLeaveSummary(organizationId: string): Promise<DashboardLoanLeaveSummaryDto> {
+    const employeeFilter = { organizationId, deletedAt: null };
+    const now = new Date();
+    const todayStart = startOfDayUtc(now);
+    const todayEnd = endOfDayUtc(now);
+    const weekStart = startOfWeekUtc(now);
+    const weekEnd = endOfWeekUtc(now);
+
+    const [
+      pendingLoanAgg,
+      activeLoanCount,
+      activeLoans,
+      pendingLeaveCount,
+      onLeaveTodayRows,
+      onLeaveThisWeekRows,
+    ] = await Promise.all([
+      this.prisma.loanApplication.aggregate({
+        where: { status: LoanStatus.PENDING, employee: employeeFilter },
+        _count: { _all: true },
+        _sum: { amountRequested: true },
+      }),
+      this.prisma.loanApplication.count({
+        where: { status: LoanStatus.ACTIVE, employee: employeeFilter },
+      }),
+      this.prisma.loanApplication.findMany({
+        where: { status: LoanStatus.ACTIVE, employee: employeeFilter },
+        select: { id: true },
+      }),
+      this.prisma.leaveApplication.count({
+        where: { status: LeaveStatus.PENDING, employee: employeeFilter },
+      }),
+      this.prisma.leaveApplication.findMany({
+        where: {
+          status: LeaveStatus.APPROVED,
+          employee: employeeFilter,
+          fromDate: { lte: todayEnd },
+          toDate: { gte: todayStart },
+        },
+        select: { employeeId: true },
+        distinct: ['employeeId'],
+      }),
+      this.prisma.leaveApplication.findMany({
+        where: {
+          status: LeaveStatus.APPROVED,
+          employee: employeeFilter,
+          fromDate: { lte: weekEnd },
+          toDate: { gte: weekStart },
+        },
+        select: { employeeId: true },
+        distinct: ['employeeId'],
+      }),
+    ]);
+
+    // Same modeling as LoansService.getOutstandingBalanceForEmployee: sum the
+    // outstandingBalance of the next undeducted EMI row per ACTIVE loan.
+    let activeOutstandingAmount = 0;
+    for (const loan of activeLoans) {
+      const nextInstallment = await this.prisma.loanEmiSchedule.findFirst({
+        where: { loanId: loan.id, isDeducted: false },
+        orderBy: [{ emiYear: 'asc' }, { emiMonth: 'asc' }],
+        select: { outstandingBalance: true },
+      });
+      if (nextInstallment) activeOutstandingAmount += nextInstallment.outstandingBalance;
+    }
+
+    return {
+      loans: {
+        pendingCount: pendingLoanAgg._count._all,
+        pendingAmount: pendingLoanAgg._sum.amountRequested ?? 0,
+        activeCount: activeLoanCount,
+        activeOutstandingAmount,
+      },
+      leave: {
+        pendingCount: pendingLeaveCount,
+        onLeaveToday: onLeaveTodayRows.length,
+        onLeaveThisWeek: onLeaveThisWeekRows.length,
+      },
+    };
+  }
+
+  /**
+   * Aggregates the data backing the Admin Dashboard's `list_notifications`
+   * widget: onboarding links expiring within the next 7 days, plus the same
+   * pending-approvals breakdown getKpis() computes (duplicated here
+   * intentionally per this module's convention — see rule in module plan —
+   * getKpis()'s existing behavior/return shape must not change).
+   */
+  async getAdminAlerts(organizationId: string): Promise<DashboardAdminAlertsDto> {
+    const now = new Date();
+    const sevenDaysOut = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    const expiringLinksWhere = {
+      organizationId,
+      status: { in: [OnboardingStatus.PENDING, OnboardingStatus.IN_PROGRESS] },
+      expiresAt: { gte: now, lte: sevenDaysOut },
+    };
+
+    const [
+      expiringLinksCount,
+      expiringLinks,
+      pendingLeave,
+      pendingLoan,
+      openServiceRequests,
+      pendingTodos,
+    ] = await Promise.all([
+      this.prisma.onboardingLink.count({ where: expiringLinksWhere }),
+      this.prisma.onboardingLink.findMany({
+        where: expiringLinksWhere,
+        orderBy: { expiresAt: 'asc' },
+        take: 5,
+        select: { id: true, candidateName: true, email: true, expiresAt: true, status: true },
+      }),
+      this.prisma.leaveApplication.count({
+        where: { status: LeaveStatus.PENDING, employee: { organizationId, deletedAt: null } },
+      }),
+      this.prisma.loanApplication.count({
+        where: { status: LoanStatus.PENDING, employee: { organizationId, deletedAt: null } },
+      }),
+      this.prisma.serviceRequest.count({
+        where: { organizationId, status: ServiceRequestStatus.OPEN },
+      }),
+      this.prisma.todoTask.count({
+        where: { status: TodoStatus.SUBMITTED, employee: { organizationId, deletedAt: null } },
+      }),
+    ]);
+
+    return {
+      onboardingLinksExpiringSoon: {
+        count: expiringLinksCount,
+        items: expiringLinks,
+      },
+      pendingApprovals: {
+        leave: pendingLeave,
+        loan: pendingLoan,
+        serviceRequest: openServiceRequests,
+        todo: pendingTodos,
+      },
+    };
+  }
+}
+
+// ─── Date helpers (UTC-anchored — see backend/CLAUDE.md rule on @db.Date /
+// same-day lookups: local-midnight helpers silently break in positive-UTC-
+// offset timezones, so every boundary here is built via Date.UTC) ────────────
+
+function startOfDayUtc(date: Date): Date {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+}
+
+function endOfDayUtc(date: Date): Date {
+  return new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 23, 59, 59, 999),
+  );
+}
+
+/** Monday 00:00:00.000 UTC of the ISO week containing `date`. */
+function startOfWeekUtc(date: Date): Date {
+  const start = startOfDayUtc(date);
+  const day = start.getUTCDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  start.setUTCDate(start.getUTCDate() + diffToMonday);
+  return start;
+}
+
+/** Sunday 23:59:59.999 UTC of the ISO week containing `date`. */
+function endOfWeekUtc(date: Date): Date {
+  const start = startOfWeekUtc(date);
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 6);
+  end.setUTCHours(23, 59, 59, 999);
+  return end;
 }

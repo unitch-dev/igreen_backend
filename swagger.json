@@ -11477,6 +11477,340 @@
         ]
       }
     },
+    "/api/v1/dashboards/loan-leave-summary": {
+      "get": {
+        "operationId": "DashboardController_getLoanLeaveSummary",
+        "summary": "Get org-level loan and leave aggregate summary",
+        "description": "Backs the Admin Dashboard `table_loan_leave_summary` widget. Returns, org-scoped: pending LoanApplication count + total requested amount, ACTIVE LoanApplication count + total outstanding balance (sum of the next undeducted LoanEmiSchedule.outstandingBalance per ACTIVE loan, mirroring LoansService.getOutstandingBalanceForEmployee's modeling); and pending LeaveApplication count, distinct employees on APPROVED leave today, and distinct employees on APPROVED leave at any point in the current ISO week (Monday-Sunday, UTC). Requires both loan:read and leave:read (AND logic).",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Loan and leave summary",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/SuccessResponseDto"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/DashboardLoanLeaveSummaryDto"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request — Validation failed or missing required fields",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Validation failed: email must be a valid email address",
+                    "error": {
+                      "message": [
+                        "email must be a valid email address"
+                      ],
+                      "statusCode": 400,
+                      "path": "/api/v1/example",
+                      "method": "POST"
+                    },
+                    "errorType": "HTTP_400",
+                    "httpCode": 400
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — Invalid or expired token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Invalid or expired token",
+                    "error": {
+                      "message": "Invalid or expired token",
+                      "statusCode": 401,
+                      "path": "/api/v1/example",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_401",
+                    "httpCode": 401
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden — missing required permissions: loan:read, leave:read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Missing required permissions: loan:read, leave:read",
+                    "error": {
+                      "message": "Missing required permissions: loan:read, leave:read",
+                      "statusCode": 403,
+                      "path": "/api/v1/dashboards/loan-leave-summary",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_403",
+                    "httpCode": 403
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found — Resource does not exist for this organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Resource not found",
+                    "error": {
+                      "message": "Resource not found",
+                      "statusCode": 404,
+                      "path": "/api/v1/example/123",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_404",
+                    "httpCode": 404
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict — Resource already exists or is in an incompatible state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "A payroll run for 7/2026 already exists for this organization",
+                    "error": {
+                      "message": "A payroll run for 7/2026 already exists for this organization",
+                      "statusCode": 409,
+                      "path": "/api/v1/example",
+                      "method": "POST"
+                    },
+                    "errorType": "HTTP_409",
+                    "httpCode": 409
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Internal server error",
+                    "error": {
+                      "message": "Internal server error",
+                      "statusCode": 500,
+                      "path": "/api/v1/example",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_500",
+                    "httpCode": 500
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Dashboards"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/dashboards/admin-alerts": {
+      "get": {
+        "operationId": "DashboardController_getAdminAlerts",
+        "summary": "Get admin alert aggregates (expiring onboarding links + pending approvals)",
+        "description": "Backs the Admin Dashboard `list_notifications` widget. Returns, org-scoped: the count and top-5-soonest-expiring list of OnboardingLink rows with status PENDING or IN_PROGRESS whose expiresAt falls within the next 7 days, plus the same pending-approvals breakdown (leave/loan/serviceRequest/todo) computed by GET /dashboards/kpis's kpi_pending_approvals_breakdown. Requires onboarding:manage.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Admin alerts summary",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/SuccessResponseDto"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/DashboardAdminAlertsDto"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request — Validation failed or missing required fields",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Validation failed: email must be a valid email address",
+                    "error": {
+                      "message": [
+                        "email must be a valid email address"
+                      ],
+                      "statusCode": 400,
+                      "path": "/api/v1/example",
+                      "method": "POST"
+                    },
+                    "errorType": "HTTP_400",
+                    "httpCode": 400
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — Invalid or expired token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Invalid or expired token",
+                    "error": {
+                      "message": "Invalid or expired token",
+                      "statusCode": 401,
+                      "path": "/api/v1/example",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_401",
+                    "httpCode": 401
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden — missing required permission: onboarding:manage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Missing required permissions: onboarding:manage",
+                    "error": {
+                      "message": "Missing required permissions: onboarding:manage",
+                      "statusCode": 403,
+                      "path": "/api/v1/dashboards/admin-alerts",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_403",
+                    "httpCode": 403
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found — Resource does not exist for this organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Resource not found",
+                    "error": {
+                      "message": "Resource not found",
+                      "statusCode": 404,
+                      "path": "/api/v1/example/123",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_404",
+                    "httpCode": 404
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict — Resource already exists or is in an incompatible state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "A payroll run for 7/2026 already exists for this organization",
+                    "error": {
+                      "message": "A payroll run for 7/2026 already exists for this organization",
+                      "statusCode": 409,
+                      "path": "/api/v1/example",
+                      "method": "POST"
+                    },
+                    "errorType": "HTTP_409",
+                    "httpCode": 409
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Internal server error",
+                    "error": {
+                      "message": "Internal server error",
+                      "statusCode": 500,
+                      "path": "/api/v1/example",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_500",
+                    "httpCode": 500
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Dashboards"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/dashboards": {
       "get": {
         "operationId": "DashboardController_findForUser",
@@ -31097,11 +31431,975 @@
         ]
       }
     },
+    "/api/v1/reports/attendance-track": {
+      "get": {
+        "operationId": "ReportsController_attendanceTrack",
+        "summary": "Attendance & live track report",
+        "description": "Paginated attendance log rows (with check-in/out geolocation) plus a snapshot of the latest live location per employee recorded within the last 30 minutes.",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "Period start date (ISO 8601)",
+            "schema": {
+              "example": "2026-07-01",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "Period end date (ISO 8601)",
+            "schema": {
+              "example": "2026-07-31",
+              "type": "string"
+            }
+          },
+          {
+            "name": "departmentId",
+            "required": false,
+            "in": "query",
+            "description": "Filter to a single department (must belong to caller org)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "month",
+            "required": false,
+            "in": "query",
+            "description": "Calendar month (1-12)",
+            "schema": {
+              "minimum": 1,
+              "maximum": 12,
+              "type": "number"
+            }
+          },
+          {
+            "name": "year",
+            "required": false,
+            "in": "query",
+            "description": "Calendar year",
+            "schema": {
+              "minimum": 2000,
+              "maximum": 2100,
+              "example": 2026,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Attendance & live track report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/SuccessResponseDto"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/AttendanceTrackReportDto"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request — Validation failed or missing required fields",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Validation failed: email must be a valid email address",
+                    "error": {
+                      "message": [
+                        "email must be a valid email address"
+                      ],
+                      "statusCode": 400,
+                      "path": "/api/v1/example",
+                      "method": "POST"
+                    },
+                    "errorType": "HTTP_400",
+                    "httpCode": 400
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — Invalid or expired token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Invalid or expired token",
+                    "error": {
+                      "message": "Invalid or expired token",
+                      "statusCode": 401,
+                      "path": "/api/v1/example",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_401",
+                    "httpCode": 401
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden — Insufficient permissions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Missing required permissions: payroll:run",
+                    "error": {
+                      "message": "Missing required permissions: payroll:run",
+                      "statusCode": 403,
+                      "path": "/api/v1/example",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_403",
+                    "httpCode": 403
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found — Resource does not exist for this organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Resource not found",
+                    "error": {
+                      "message": "Resource not found",
+                      "statusCode": 404,
+                      "path": "/api/v1/example/123",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_404",
+                    "httpCode": 404
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict — Resource already exists or is in an incompatible state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "A payroll run for 7/2026 already exists for this organization",
+                    "error": {
+                      "message": "A payroll run for 7/2026 already exists for this organization",
+                      "statusCode": 409,
+                      "path": "/api/v1/example",
+                      "method": "POST"
+                    },
+                    "errorType": "HTTP_409",
+                    "httpCode": 409
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Internal server error",
+                    "error": {
+                      "message": "Internal server error",
+                      "statusCode": 500,
+                      "path": "/api/v1/example",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_500",
+                    "httpCode": 500
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Reports"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/reports/performance": {
+      "get": {
+        "operationId": "ReportsController_performance",
+        "summary": "Performance report",
+        "description": "Per-employee performance ratings for the period plus KPI assignment/achievement stats.",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "Period start date (ISO 8601)",
+            "schema": {
+              "example": "2026-07-01",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "Period end date (ISO 8601)",
+            "schema": {
+              "example": "2026-07-31",
+              "type": "string"
+            }
+          },
+          {
+            "name": "departmentId",
+            "required": false,
+            "in": "query",
+            "description": "Filter to a single department (must belong to caller org)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "month",
+            "required": false,
+            "in": "query",
+            "description": "Calendar month (1-12)",
+            "schema": {
+              "minimum": 1,
+              "maximum": 12,
+              "type": "number"
+            }
+          },
+          {
+            "name": "year",
+            "required": false,
+            "in": "query",
+            "description": "Calendar year",
+            "schema": {
+              "minimum": 2000,
+              "maximum": 2100,
+              "example": 2026,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Performance report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/SuccessResponseDto"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/PerformanceReportDto"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request — Validation failed or missing required fields",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Validation failed: email must be a valid email address",
+                    "error": {
+                      "message": [
+                        "email must be a valid email address"
+                      ],
+                      "statusCode": 400,
+                      "path": "/api/v1/example",
+                      "method": "POST"
+                    },
+                    "errorType": "HTTP_400",
+                    "httpCode": 400
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — Invalid or expired token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Invalid or expired token",
+                    "error": {
+                      "message": "Invalid or expired token",
+                      "statusCode": 401,
+                      "path": "/api/v1/example",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_401",
+                    "httpCode": 401
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden — Insufficient permissions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Missing required permissions: payroll:run",
+                    "error": {
+                      "message": "Missing required permissions: payroll:run",
+                      "statusCode": 403,
+                      "path": "/api/v1/example",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_403",
+                    "httpCode": 403
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found — Resource does not exist for this organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Resource not found",
+                    "error": {
+                      "message": "Resource not found",
+                      "statusCode": 404,
+                      "path": "/api/v1/example/123",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_404",
+                    "httpCode": 404
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict — Resource already exists or is in an incompatible state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "A payroll run for 7/2026 already exists for this organization",
+                    "error": {
+                      "message": "A payroll run for 7/2026 already exists for this organization",
+                      "statusCode": 409,
+                      "path": "/api/v1/example",
+                      "method": "POST"
+                    },
+                    "errorType": "HTTP_409",
+                    "httpCode": 409
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Internal server error",
+                    "error": {
+                      "message": "Internal server error",
+                      "statusCode": 500,
+                      "path": "/api/v1/example",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_500",
+                    "httpCode": 500
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Reports"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/reports/todo-incentive": {
+      "get": {
+        "operationId": "ReportsController_todoIncentive",
+        "summary": "Todo & incentive report",
+        "description": "Per-employee todo completion stats correlated with incentive ledger payouts.",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "Period start date (ISO 8601)",
+            "schema": {
+              "example": "2026-07-01",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "Period end date (ISO 8601)",
+            "schema": {
+              "example": "2026-07-31",
+              "type": "string"
+            }
+          },
+          {
+            "name": "departmentId",
+            "required": false,
+            "in": "query",
+            "description": "Filter to a single department (must belong to caller org)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "month",
+            "required": false,
+            "in": "query",
+            "description": "Calendar month (1-12)",
+            "schema": {
+              "minimum": 1,
+              "maximum": 12,
+              "type": "number"
+            }
+          },
+          {
+            "name": "year",
+            "required": false,
+            "in": "query",
+            "description": "Calendar year",
+            "schema": {
+              "minimum": 2000,
+              "maximum": 2100,
+              "example": 2026,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Todo & incentive report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/SuccessResponseDto"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/TodoIncentiveReportDto"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request — Validation failed or missing required fields",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Validation failed: email must be a valid email address",
+                    "error": {
+                      "message": [
+                        "email must be a valid email address"
+                      ],
+                      "statusCode": 400,
+                      "path": "/api/v1/example",
+                      "method": "POST"
+                    },
+                    "errorType": "HTTP_400",
+                    "httpCode": 400
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — Invalid or expired token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Invalid or expired token",
+                    "error": {
+                      "message": "Invalid or expired token",
+                      "statusCode": 401,
+                      "path": "/api/v1/example",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_401",
+                    "httpCode": 401
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden — Insufficient permissions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Missing required permissions: payroll:run",
+                    "error": {
+                      "message": "Missing required permissions: payroll:run",
+                      "statusCode": 403,
+                      "path": "/api/v1/example",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_403",
+                    "httpCode": 403
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found — Resource does not exist for this organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Resource not found",
+                    "error": {
+                      "message": "Resource not found",
+                      "statusCode": 404,
+                      "path": "/api/v1/example/123",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_404",
+                    "httpCode": 404
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict — Resource already exists or is in an incompatible state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "A payroll run for 7/2026 already exists for this organization",
+                    "error": {
+                      "message": "A payroll run for 7/2026 already exists for this organization",
+                      "statusCode": 409,
+                      "path": "/api/v1/example",
+                      "method": "POST"
+                    },
+                    "errorType": "HTTP_409",
+                    "httpCode": 409
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Internal server error",
+                    "error": {
+                      "message": "Internal server error",
+                      "statusCode": 500,
+                      "path": "/api/v1/example",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_500",
+                    "httpCode": 500
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Reports"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/reports/audit": {
+      "get": {
+        "operationId": "ReportsController_auditHistory",
+        "summary": "Audit — login & system-change history",
+        "description": "Per-user login history (with device/IP info) plus a best-effort AuditLog system-change feed. Security-sensitive — gated by the dedicated report:audit permission, not report:read.",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "Period start date (ISO 8601)",
+            "schema": {
+              "example": "2026-07-01",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "Period end date (ISO 8601)",
+            "schema": {
+              "example": "2026-07-31",
+              "type": "string"
+            }
+          },
+          {
+            "name": "departmentId",
+            "required": false,
+            "in": "query",
+            "description": "Filter to a single department (must belong to caller org)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "month",
+            "required": false,
+            "in": "query",
+            "description": "Calendar month (1-12)",
+            "schema": {
+              "minimum": 1,
+              "maximum": 12,
+              "type": "number"
+            }
+          },
+          {
+            "name": "year",
+            "required": false,
+            "in": "query",
+            "description": "Calendar year",
+            "schema": {
+              "minimum": 2000,
+              "maximum": 2100,
+              "example": 2026,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Audit history report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/SuccessResponseDto"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/AuditHistoryReportDto"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request — Validation failed or missing required fields",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Validation failed: email must be a valid email address",
+                    "error": {
+                      "message": [
+                        "email must be a valid email address"
+                      ],
+                      "statusCode": 400,
+                      "path": "/api/v1/example",
+                      "method": "POST"
+                    },
+                    "errorType": "HTTP_400",
+                    "httpCode": 400
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — Invalid or expired token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Invalid or expired token",
+                    "error": {
+                      "message": "Invalid or expired token",
+                      "statusCode": 401,
+                      "path": "/api/v1/example",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_401",
+                    "httpCode": 401
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden — Insufficient permissions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Missing required permissions: payroll:run",
+                    "error": {
+                      "message": "Missing required permissions: payroll:run",
+                      "statusCode": 403,
+                      "path": "/api/v1/example",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_403",
+                    "httpCode": 403
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found — Resource does not exist for this organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Resource not found",
+                    "error": {
+                      "message": "Resource not found",
+                      "statusCode": 404,
+                      "path": "/api/v1/example/123",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_404",
+                    "httpCode": 404
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict — Resource already exists or is in an incompatible state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "A payroll run for 7/2026 already exists for this organization",
+                    "error": {
+                      "message": "A payroll run for 7/2026 already exists for this organization",
+                      "statusCode": 409,
+                      "path": "/api/v1/example",
+                      "method": "POST"
+                    },
+                    "errorType": "HTTP_409",
+                    "httpCode": 409
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Internal server error",
+                    "error": {
+                      "message": "Internal server error",
+                      "statusCode": 500,
+                      "path": "/api/v1/example",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_500",
+                    "httpCode": 500
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Reports"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/reports/{type}/export": {
       "get": {
         "operationId": "ReportsController_exportReport",
         "summary": "Export a report as Excel or PDF",
-        "description": "Streams a binary file (bypasses the response envelope). Excel is supported for all report types; PDF is currently only implemented for the payroll report.",
+        "description": "Streams a binary file (bypasses the response envelope). Excel is supported for all report types; PDF is implemented for payroll, attendance-track, performance, and todo-incentive. Exporting type=audit additionally requires the report:audit permission.",
         "parameters": [
           {
             "name": "type",
@@ -31114,7 +32412,11 @@
                 "leave",
                 "payroll",
                 "loans",
-                "incentives"
+                "incentives",
+                "attendance-track",
+                "performance",
+                "todo-incentive",
+                "audit"
               ],
               "type": "string"
             }
@@ -31457,6 +32759,10 @@
     {
       "name": "Dashboards",
       "description": "Dashboard Aggregates"
+    },
+    {
+      "name": "Reports",
+      "description": "Org Reports — Headcount, Attendance, Leave, Payroll, Loans, Incentives, Attendance/Live Track, Performance, Todo & Incentive, and Audit History, plus Excel/PDF Export"
     },
     {
       "name": "Platform Auth",
@@ -35009,6 +36315,176 @@
           "kpi_open_tickets",
           "kpi_my_leave_balance",
           "kpi_my_performance"
+        ]
+      },
+      "LoanSummaryDto": {
+        "type": "object",
+        "properties": {
+          "pendingCount": {
+            "type": "number",
+            "description": "Count of LoanApplication with status PENDING"
+          },
+          "pendingAmount": {
+            "type": "number",
+            "description": "Sum of amountRequested for LoanApplication rows with status PENDING (0 if none)"
+          },
+          "activeCount": {
+            "type": "number",
+            "description": "Count of LoanApplication with status ACTIVE"
+          },
+          "activeOutstandingAmount": {
+            "type": "number",
+            "description": "Sum of outstanding principal+interest still owed across all ACTIVE loans. Computed the same way as LoansService.getOutstandingBalanceForEmployee — the outstandingBalance of the next undeducted LoanEmiSchedule row per ACTIVE loan (that row already reflects the remaining balance as of that installment), summed across every ACTIVE loan in the org. 0 if there are no ACTIVE loans."
+          }
+        },
+        "required": [
+          "pendingCount",
+          "pendingAmount",
+          "activeCount",
+          "activeOutstandingAmount"
+        ]
+      },
+      "LeaveSummaryDto": {
+        "type": "object",
+        "properties": {
+          "pendingCount": {
+            "type": "number",
+            "description": "Count of LeaveApplication with status PENDING"
+          },
+          "onLeaveToday": {
+            "type": "number",
+            "description": "Distinct count of employees with an APPROVED LeaveApplication whose [fromDate, toDate] range includes today (UTC calendar day)"
+          },
+          "onLeaveThisWeek": {
+            "type": "number",
+            "description": "Distinct count of employees with an APPROVED LeaveApplication overlapping the current ISO week (Monday 00:00 UTC through Sunday 23:59:59.999 UTC)"
+          }
+        },
+        "required": [
+          "pendingCount",
+          "onLeaveToday",
+          "onLeaveThisWeek"
+        ]
+      },
+      "DashboardLoanLeaveSummaryDto": {
+        "type": "object",
+        "properties": {
+          "loans": {
+            "$ref": "#/components/schemas/LoanSummaryDto"
+          },
+          "leave": {
+            "$ref": "#/components/schemas/LeaveSummaryDto"
+          }
+        },
+        "required": [
+          "loans",
+          "leave"
+        ]
+      },
+      "ExpiringOnboardingLinkDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "OnboardingLink id"
+          },
+          "candidateName": {
+            "type": "string",
+            "nullable": true,
+            "description": "Candidate name, if captured"
+          },
+          "email": {
+            "type": "string",
+            "description": "Candidate email the link was issued to"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "When the link expires"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "IN_PROGRESS",
+              "SUBMITTED",
+              "UNDER_REVIEW",
+              "CHANGES_REQUESTED",
+              "ACTIVATED",
+              "REJECTED",
+              "EXPIRED"
+            ],
+            "description": "Current onboarding status of the link"
+          }
+        },
+        "required": [
+          "id",
+          "candidateName",
+          "email",
+          "expiresAt",
+          "status"
+        ]
+      },
+      "OnboardingLinksExpiringSoonDto": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "number",
+            "description": "Count of OnboardingLink rows with status PENDING or IN_PROGRESS whose expiresAt falls within the next 7 days (inclusive of now)"
+          },
+          "items": {
+            "description": "Top 5 soonest-expiring links, ordered by expiresAt ascending",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExpiringOnboardingLinkDto"
+            }
+          }
+        },
+        "required": [
+          "count",
+          "items"
+        ]
+      },
+      "AdminAlertsPendingApprovalsDto": {
+        "type": "object",
+        "properties": {
+          "leave": {
+            "type": "number",
+            "description": "PENDING LeaveApplication count"
+          },
+          "loan": {
+            "type": "number",
+            "description": "PENDING LoanApplication count"
+          },
+          "serviceRequest": {
+            "type": "number",
+            "description": "OPEN ServiceRequest count"
+          },
+          "todo": {
+            "type": "number",
+            "description": "SUBMITTED TodoTask count (awaiting manager review)"
+          }
+        },
+        "required": [
+          "leave",
+          "loan",
+          "serviceRequest",
+          "todo"
+        ]
+      },
+      "DashboardAdminAlertsDto": {
+        "type": "object",
+        "properties": {
+          "onboardingLinksExpiringSoon": {
+            "$ref": "#/components/schemas/OnboardingLinksExpiringSoonDto"
+          },
+          "pendingApprovals": {
+            "$ref": "#/components/schemas/AdminAlertsPendingApprovalsDto"
+          }
+        },
+        "required": [
+          "onboardingLinksExpiringSoon",
+          "pendingApprovals"
         ]
       },
       "Object": {
@@ -39018,6 +40494,109 @@
           "otherDeductions"
         ]
       },
+      "PayrollEmployeeRowDto": {
+        "type": "object",
+        "properties": {
+          "employeeId": {
+            "type": "string"
+          },
+          "empCode": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "basicSalary": {
+            "type": "number"
+          },
+          "hra": {
+            "type": "number"
+          },
+          "specialAllowance": {
+            "type": "number"
+          },
+          "educationAllowance": {
+            "type": "number"
+          },
+          "otherAllowances": {
+            "type": "number"
+          },
+          "incentiveAmount": {
+            "type": "number"
+          },
+          "overtimeAmount": {
+            "type": "number"
+          },
+          "travelAllowance": {
+            "type": "number"
+          },
+          "bonus": {
+            "type": "number"
+          },
+          "greenThanksAmount": {
+            "type": "number"
+          },
+          "grossSalary": {
+            "type": "number"
+          },
+          "pfEmployee": {
+            "type": "number"
+          },
+          "pfEmployer": {
+            "type": "number"
+          },
+          "esiEmployee": {
+            "type": "number"
+          },
+          "esiEmployer": {
+            "type": "number"
+          },
+          "professionalTax": {
+            "type": "number"
+          },
+          "tds": {
+            "type": "number"
+          },
+          "loanDeduction": {
+            "type": "number"
+          },
+          "advanceDeduction": {
+            "type": "number"
+          },
+          "otherDeductions": {
+            "type": "number"
+          },
+          "netSalary": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "employeeId",
+          "empCode",
+          "name",
+          "basicSalary",
+          "hra",
+          "specialAllowance",
+          "educationAllowance",
+          "otherAllowances",
+          "incentiveAmount",
+          "overtimeAmount",
+          "travelAllowance",
+          "bonus",
+          "greenThanksAmount",
+          "grossSalary",
+          "pfEmployee",
+          "pfEmployer",
+          "esiEmployee",
+          "esiEmployer",
+          "professionalTax",
+          "tds",
+          "loanDeduction",
+          "advanceDeduction",
+          "otherDeductions",
+          "netSalary"
+        ]
+      },
       "PayrollReportDto": {
         "type": "object",
         "properties": {
@@ -39049,6 +40628,34 @@
           },
           "componentBreakdown": {
             "$ref": "#/components/schemas/PayrollComponentBreakdownDto"
+          },
+          "rows": {
+            "description": "Paginated per-employee breakdown",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PayrollEmployeeRowDto"
+            }
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "required": true,
+                "type": "number"
+              },
+              "page": {
+                "required": true,
+                "type": "number"
+              },
+              "limit": {
+                "required": true,
+                "type": "number"
+              },
+              "totalPages": {
+                "required": true,
+                "type": "number"
+              }
+            }
           }
         },
         "required": [
@@ -39059,7 +40666,9 @@
           "employeeCount",
           "totalGross",
           "totalDisbursed",
-          "componentBreakdown"
+          "componentBreakdown",
+          "rows",
+          "meta"
         ]
       },
       "LoanReportRowDto": {
@@ -39232,6 +40841,530 @@
           "totalAmount",
           "rows",
           "meta"
+        ]
+      },
+      "AttendanceTrackLogRowDto": {
+        "type": "object",
+        "properties": {
+          "employeeId": {
+            "type": "string"
+          },
+          "empCode": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string"
+          },
+          "checkInAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "checkOutAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "checkInLat": {
+            "type": "number",
+            "nullable": true
+          },
+          "checkInLng": {
+            "type": "number",
+            "nullable": true
+          },
+          "checkInLocationName": {
+            "type": "string",
+            "nullable": true
+          },
+          "checkOutLat": {
+            "type": "number",
+            "nullable": true
+          },
+          "checkOutLng": {
+            "type": "number",
+            "nullable": true
+          },
+          "checkOutLocationName": {
+            "type": "string",
+            "nullable": true
+          },
+          "source": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "totalHours": {
+            "type": "number",
+            "nullable": true
+          }
+        },
+        "required": [
+          "employeeId",
+          "empCode",
+          "name",
+          "date",
+          "checkInAt",
+          "checkOutAt",
+          "checkInLat",
+          "checkInLng",
+          "checkInLocationName",
+          "checkOutLat",
+          "checkOutLng",
+          "checkOutLocationName",
+          "source",
+          "status",
+          "totalHours"
+        ]
+      },
+      "LiveTrackEntryDto": {
+        "type": "object",
+        "properties": {
+          "employeeId": {
+            "type": "string"
+          },
+          "empCode": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "lat": {
+            "type": "number"
+          },
+          "lng": {
+            "type": "number"
+          },
+          "recordedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "employeeId",
+          "empCode",
+          "name",
+          "lat",
+          "lng",
+          "recordedAt"
+        ]
+      },
+      "AttendanceTrackReportDto": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "description": "Period start date (ISO)"
+          },
+          "to": {
+            "type": "string",
+            "description": "Period end date (ISO)"
+          },
+          "rows": {
+            "description": "Paginated attendance log rows",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AttendanceTrackLogRowDto"
+            }
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "required": true,
+                "type": "number"
+              },
+              "page": {
+                "required": true,
+                "type": "number"
+              },
+              "limit": {
+                "required": true,
+                "type": "number"
+              },
+              "totalPages": {
+                "required": true,
+                "type": "number"
+              }
+            }
+          },
+          "liveNow": {
+            "description": "Latest LiveLocation per employee recorded within the last 30 minutes, capped at 200 employees",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LiveTrackEntryDto"
+            }
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "rows",
+          "meta",
+          "liveNow"
+        ]
+      },
+      "PerformanceReportRowDto": {
+        "type": "object",
+        "properties": {
+          "employeeId": {
+            "type": "string"
+          },
+          "empCode": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "cycleId": {
+            "type": "string"
+          },
+          "cycleName": {
+            "type": "string"
+          },
+          "rating": {
+            "type": "number"
+          },
+          "isEligibleForIncrement": {
+            "type": "boolean"
+          },
+          "ratedBy": {
+            "type": "string"
+          },
+          "submittedAt": {
+            "type": "string"
+          },
+          "kpiAssignedCount": {
+            "type": "number"
+          },
+          "kpiAchievedCount": {
+            "type": "number"
+          },
+          "kpiAchievementRate": {
+            "type": "number",
+            "description": "0-1, 0 when no KPIs are assigned"
+          }
+        },
+        "required": [
+          "employeeId",
+          "empCode",
+          "name",
+          "cycleId",
+          "cycleName",
+          "rating",
+          "isEligibleForIncrement",
+          "ratedBy",
+          "submittedAt",
+          "kpiAssignedCount",
+          "kpiAchievedCount",
+          "kpiAchievementRate"
+        ]
+      },
+      "PerformanceReportDto": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "description": "Period start date (ISO)"
+          },
+          "to": {
+            "type": "string",
+            "description": "Period end date (ISO)"
+          },
+          "avgRating": {
+            "type": "number",
+            "description": "Average rating across all matched PerformanceRating rows"
+          },
+          "totalRatingsCount": {
+            "type": "number",
+            "description": "Count of all matched PerformanceRating rows"
+          },
+          "rows": {
+            "description": "Paginated per-employee rows",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PerformanceReportRowDto"
+            }
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "required": true,
+                "type": "number"
+              },
+              "page": {
+                "required": true,
+                "type": "number"
+              },
+              "limit": {
+                "required": true,
+                "type": "number"
+              },
+              "totalPages": {
+                "required": true,
+                "type": "number"
+              }
+            }
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "avgRating",
+          "totalRatingsCount",
+          "rows",
+          "meta"
+        ]
+      },
+      "TodoIncentiveReportRowDto": {
+        "type": "object",
+        "properties": {
+          "employeeId": {
+            "type": "string"
+          },
+          "empCode": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "todosTotal": {
+            "type": "number"
+          },
+          "todosApproved": {
+            "type": "number"
+          },
+          "todosRejected": {
+            "type": "number"
+          },
+          "completionRate": {
+            "type": "number",
+            "description": "todosApproved / todosTotal, 0 when todosTotal is 0"
+          },
+          "incentiveTotalAmount": {
+            "type": "number",
+            "description": "Sum of IncentiveLedger.totalAmount for this employee in range"
+          },
+          "incentiveReleasedAmount": {
+            "type": "number",
+            "description": "Sum of IncentiveLedger.releaseAmount for this employee in range"
+          }
+        },
+        "required": [
+          "employeeId",
+          "empCode",
+          "name",
+          "todosTotal",
+          "todosApproved",
+          "todosRejected",
+          "completionRate",
+          "incentiveTotalAmount",
+          "incentiveReleasedAmount"
+        ]
+      },
+      "TodoIncentiveReportDto": {
+        "type": "object",
+        "properties": {
+          "orgTodosApproved": {
+            "type": "number",
+            "description": "Count of APPROVED todos org-wide (within filters)"
+          },
+          "orgIncentiveTotalAmount": {
+            "type": "number",
+            "description": "Sum of IncentiveLedger.totalAmount org-wide (within filters)"
+          },
+          "rows": {
+            "description": "Paginated per-employee rows",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TodoIncentiveReportRowDto"
+            }
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "required": true,
+                "type": "number"
+              },
+              "page": {
+                "required": true,
+                "type": "number"
+              },
+              "limit": {
+                "required": true,
+                "type": "number"
+              },
+              "totalPages": {
+                "required": true,
+                "type": "number"
+              }
+            }
+          }
+        },
+        "required": [
+          "orgTodosApproved",
+          "orgIncentiveTotalAmount",
+          "rows",
+          "meta"
+        ]
+      },
+      "AuditLoginRowDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "empCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "ipAddress": {
+            "type": "string",
+            "nullable": true
+          },
+          "userAgent": {
+            "type": "string",
+            "nullable": true
+          },
+          "deviceInfo": {
+            "type": "string",
+            "nullable": true
+          },
+          "loginAt": {
+            "type": "string"
+          },
+          "logoutAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "userId",
+          "email",
+          "empCode",
+          "name",
+          "ipAddress",
+          "userAgent",
+          "deviceInfo",
+          "loginAt",
+          "logoutAt",
+          "status"
+        ]
+      },
+      "AuditSystemChangeRowDto": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "entityType": {
+            "type": "string"
+          },
+          "entityId": {
+            "type": "string",
+            "nullable": true
+          },
+          "actorId": {
+            "type": "string",
+            "nullable": true
+          },
+          "occurredAt": {
+            "type": "string"
+          },
+          "ipAddress": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "action",
+          "entityType",
+          "entityId",
+          "actorId",
+          "occurredAt",
+          "ipAddress"
+        ]
+      },
+      "AuditHistoryReportDto": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "description": "Period start date (ISO)"
+          },
+          "to": {
+            "type": "string",
+            "description": "Period end date (ISO)"
+          },
+          "totalLogins": {
+            "type": "number",
+            "description": "Count of all matched login attempts"
+          },
+          "failedLogins": {
+            "type": "number",
+            "description": "Count of matched login attempts with status !== 'success'"
+          },
+          "uniqueUsers": {
+            "type": "number",
+            "description": "Distinct userId count across matched login attempts"
+          },
+          "rows": {
+            "description": "Paginated login history rows",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuditLoginRowDto"
+            }
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "required": true,
+                "type": "number"
+              },
+              "page": {
+                "required": true,
+                "type": "number"
+              },
+              "limit": {
+                "required": true,
+                "type": "number"
+              },
+              "totalPages": {
+                "required": true,
+                "type": "number"
+              }
+            }
+          },
+          "systemChanges": {
+            "description": "Best-effort AuditLog entries for the org/date range (capped, not paginated). Likely empty — nothing in the codebase currently writes to AuditLog.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuditSystemChangeRowDto"
+            }
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "totalLogins",
+          "failedLogins",
+          "uniqueUsers",
+          "rows",
+          "meta",
+          "systemChanges"
         ]
       }
     }

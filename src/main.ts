@@ -108,6 +108,12 @@ async function bootstrap() {
       )
       .addTag('Insurance', 'Insurance Policy Master & Employee/Family Enrollment (Approval-Based)')
       .addTag('Dashboards', 'Dashboard Aggregates')
+      .addTag(
+        'Reports',
+        'Org Reports — Headcount, Attendance, Leave, Payroll, Loans, Incentives, ' +
+          'Attendance/Live Track, Performance, Todo & Incentive, and Audit History, ' +
+          'plus Excel/PDF Export',
+      )
       .addTag('Platform Auth', 'Platform-Level Authentication (Super Admin)')
       .addTag('Platform Organizations', 'Platform-Level Organization Management (Super Admin)')
       .addTag('Platform Invoices', 'Platform Billing & Invoices')
