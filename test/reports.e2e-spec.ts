@@ -658,6 +658,7 @@ describe('Reports & Dashboard module (e2e)', () => {
 
   describe('GET /reports/attendance', () => {
     let org: OrgFixture;
+    let policyTypeId: string;
 
     beforeAll(async () => {
       org = await createOrgFixture('attendance', 2);
@@ -699,6 +700,39 @@ describe('Reports & Dashboard module (e2e)', () => {
           },
         ],
       });
+
+      const policy = await prisma.leavePolicy.create({
+        data: {
+          organizationId: org.organizationId,
+          name: 'Attendance Report Leave Policy',
+          types: { create: { leaveType: 'CASUAL', daysPerYear: 12 } },
+        },
+        include: { types: true },
+      });
+      policyTypeId = policy.types[0].id;
+
+      // Approved leave overlapping the June period — must be counted for employees[0].
+      await prisma.leaveApplication.create({
+        data: {
+          employeeId: org.employees[0].id,
+          leavePolicyTypeId: policyTypeId,
+          fromDate: d(10),
+          toDate: d(11),
+          days: 2,
+          status: 'APPROVED',
+        },
+      });
+      // PENDING leave — must NOT be counted.
+      await prisma.leaveApplication.create({
+        data: {
+          employeeId: org.employees[1].id,
+          leavePolicyTypeId: policyTypeId,
+          fromDate: d(12),
+          toDate: d(12),
+          days: 1,
+          status: 'PENDING',
+        },
+      });
     });
 
     it('totalPresent/totalAbsent match AttendanceLog counts; totalLop == sum PayrollEntry.lopDays', async () => {
@@ -712,6 +746,22 @@ describe('Reports & Dashboard module (e2e)', () => {
       expect(data.totalPresent).toBe(3);
       expect(data.totalAbsent).toBe(2);
       expect(data.totalLop).toBe(3);
+    });
+
+    it('rows[].leaveDays and top-level totalLeave reflect only APPROVED LeaveApplication days overlapping the period', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/reports/attendance')
+        .query({ from: '2026-06-01', to: '2026-06-30', month: 6, year: 2026 })
+        .set(authed(org.readerToken, org.organizationId))
+        .expect(200);
+
+      const data = res.body.data;
+      expect(data.totalLeave).toBe(2);
+      const row0 = data.rows.find((r: any) => r.employeeId === org.employees[0].id);
+      const row1 = data.rows.find((r: any) => r.employeeId === org.employees[1].id);
+      expect(row0.leaveDays).toBe(2);
+      expect(row1.leaveDays).toBe(0); // PENDING leave is excluded
+      data.rows.forEach((r: any) => expect(typeof r.leaveDays).toBe('number'));
     });
   });
 
@@ -841,12 +891,12 @@ describe('Reports & Dashboard module (e2e)', () => {
         .set(authed(orgB.readerToken, orgB.organizationId))
         .expect(200);
 
-      expect(
-        resB.body.data.rows.some((r: any) => r.employeeId === orgA.employees[0].id),
-      ).toBe(false);
-      expect(
-        resB.body.data.liveNow.some((l: any) => l.employeeId === orgA.employees[0].id),
-      ).toBe(false);
+      expect(resB.body.data.rows.some((r: any) => r.employeeId === orgA.employees[0].id)).toBe(
+        false,
+      );
+      expect(resB.body.data.liveNow.some((l: any) => l.employeeId === orgA.employees[0].id)).toBe(
+        false,
+      );
     });
   });
 
@@ -976,9 +1026,9 @@ describe('Reports & Dashboard module (e2e)', () => {
         .expect(200);
 
       expect(resB.body.data.totalRatingsCount).toBe(0);
-      expect(
-        resB.body.data.rows.some((r: any) => r.employeeId === orgA.employees[0].id),
-      ).toBe(false);
+      expect(resB.body.data.rows.some((r: any) => r.employeeId === orgA.employees[0].id)).toBe(
+        false,
+      );
     });
   });
 
@@ -1199,7 +1249,10 @@ describe('Reports & Dashboard module (e2e)', () => {
         return login.body.data.accessToken;
       }
 
-      const auditOnlyToken = await makeUser(`audit-only-${label}@reports-e2e.test`, auditOnlyRole.id);
+      const auditOnlyToken = await makeUser(
+        `audit-only-${label}@reports-e2e.test`,
+        auditOnlyRole.id,
+      );
       const auditExportToken = await makeUser(
         `audit-export-${label}@reports-e2e.test`,
         auditExportRole.id,
@@ -1243,9 +1296,9 @@ describe('Reports & Dashboard module (e2e)', () => {
 
       const orgAUserIds = [orgA.auditOnlyToken, orgA.auditExportToken]; // not directly useful, but assert by email domain instead
       void orgAUserIds;
-      expect(
-        resB.body.data.rows.every((r: any) => !r.email.includes(`-audit-tenant-a@`)),
-      ).toBe(true);
+      expect(resB.body.data.rows.every((r: any) => !r.email.includes(`-audit-tenant-a@`))).toBe(
+        true,
+      );
     });
 
     it('from/to filters login rows to the requested period', async () => {
@@ -1263,9 +1316,7 @@ describe('Reports & Dashboard module (e2e)', () => {
         .set(authed(org.auditOnlyToken, org.organizationId))
         .expect(200);
 
-      expect(
-        res.body.data.rows.some((r: any) => r.loginAt.startsWith('2020')),
-      ).toBe(false);
+      expect(res.body.data.rows.some((r: any) => r.loginAt.startsWith('2020'))).toBe(false);
     });
 
     it('a user with report:read + report:export but NOT report:audit gets 403 exporting type=audit', async () => {
@@ -1292,13 +1343,29 @@ describe('Reports & Dashboard module (e2e)', () => {
       expect(buf.slice(0, 4)).toEqual(Buffer.from([0x50, 0x4b, 0x03, 0x04]));
     });
 
-    it('audit type is rejected for PDF export with 400 (not in PDF_SUPPORTED_TYPES)', async () => {
-      const org = await createAuditFixture('audit-pdf-reject');
-      await request(app.getHttpServer())
+    it('a user with report:audit + report:export succeeds exporting type=audit as PDF', async () => {
+      const org = await createAuditFixture('audit-pdf-ok');
+      const res = await request(app.getHttpServer())
         .get('/api/v1/reports/audit/export')
         .query({ format: 'pdf' })
         .set(authed(org.auditExportToken, org.organizationId))
-        .expect(400);
+        .buffer(true)
+        .parse(binaryParser)
+        .expect(200);
+
+      expect(res.headers['content-type']).toContain('application/pdf');
+      const buf: Buffer = res.body;
+      expect(buf.slice(0, 4).toString('ascii')).toBe('%PDF');
+      expect(buf.length).toBeGreaterThan(200);
+    });
+
+    it('a user with report:read + report:export but NOT report:audit gets 403 exporting type=audit as PDF', async () => {
+      const org = await createOrgFixture('audit-pdf-noaudit', 1);
+      await request(app.getHttpServer())
+        .get('/api/v1/reports/audit/export')
+        .query({ format: 'pdf' })
+        .set(authed(org.readerToken, org.organizationId))
+        .expect(403);
     });
   });
 
@@ -1360,6 +1427,22 @@ describe('Reports & Dashboard module (e2e)', () => {
         .query({ format: 'excel' })
         .set(authed(org.noPermToken, org.organizationId))
         .expect(403);
+    });
+
+    it('attendance excel export includes a "Leave Days" column header', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/reports/attendance/export')
+        .query({ format: 'excel' })
+        .set(authed(org.readerToken, org.organizationId))
+        .buffer(true)
+        .parse(binaryParser)
+        .expect(200);
+
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(res.body);
+      const sheet = workbook.getWorksheet('attendance');
+      const headerRow = sheet!.getRow(1).values as unknown[];
+      expect(headerRow).toContain('Leave Days');
     });
 
     it('attendance-track excel export produces a "Live Now" sheet with rows matching liveLocation data', async () => {
@@ -1538,6 +1621,26 @@ describe('Reports & Dashboard module (e2e)', () => {
         .query({ format: 'pdf' })
         .set(authed(org.readerToken, org.organizationId))
         .expect(400);
+    });
+
+    it('attendance pdf export returns a valid non-trivial PDF', async () => {
+      const attOrg = await createOrgFixture('export-pdf-attendance', 1);
+      await prisma.attendanceLog.create({
+        data: { employeeId: attOrg.employees[0].id, date: new Date(), status: 'PRESENT' },
+      });
+
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/reports/attendance/export')
+        .query({ format: 'pdf' })
+        .set(authed(attOrg.readerToken, attOrg.organizationId))
+        .buffer(true)
+        .parse(binaryParser)
+        .expect(200);
+
+      expect(res.headers['content-type']).toContain('application/pdf');
+      const buf: Buffer = res.body;
+      expect(buf.slice(0, 4).toString('ascii')).toBe('%PDF');
+      expect(buf.length).toBeGreaterThan(200);
     });
 
     it('attendance-track pdf export returns a valid non-trivial PDF', async () => {

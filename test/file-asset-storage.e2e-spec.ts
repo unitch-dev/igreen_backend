@@ -444,7 +444,12 @@ describe('FileAsset storage refactor (e2e)', () => {
           lastName: 'Verma',
           dateOfBirth: '1996-05-10',
           gender: 'FEMALE',
-          address: { line1: '221B Baker Street', city: 'Pune', state: 'Maharashtra', pincode: '411001' },
+          address: {
+            line1: '221B Baker Street',
+            city: 'Pune',
+            state: 'Maharashtra',
+            pincode: '411001',
+          },
           declarationAccepted: true,
           bankName: 'HDFC Bank',
           accountNumber: '123456789012',
@@ -479,7 +484,9 @@ describe('FileAsset storage refactor (e2e)', () => {
       expect(res.body.data.documentCount).toBe(1);
 
       const updatedLink = await prisma.onboardingLink.findUnique({ where: { id: link.id } });
-      const submissionData = updatedLink?.submissionData as { documents?: Array<{ fileAssetId?: string }> } | null;
+      const submissionData = updatedLink?.submissionData as {
+        documents?: Array<{ fileAssetId?: string }>;
+      } | null;
       expect(submissionData?.documents?.some((d) => d.fileAssetId === asset!.id)).toBe(true);
     });
   });

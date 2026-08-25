@@ -38,6 +38,7 @@ import { DisciplinaryModule } from './modules/disciplinary/disciplinary.module';
 import { ExitModule } from './modules/exit/exit.module';
 import { InsuranceModule } from './modules/insurance/insurance.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { RbacModule } from './modules/rbac/rbac.module';
 
 @Module({
   controllers: [AppController],
@@ -115,6 +116,7 @@ import { ReportsModule } from './modules/reports/reports.module';
     ExitModule,
     InsuranceModule,
     ReportsModule,
+    RbacModule,
     // Modules to be added as they are developed
     // RemindersModule,
   ],

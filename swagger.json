@@ -32651,6 +32651,88 @@
           }
         ]
       }
+    },
+    "/api/v1/platform/rbac/refresh": {
+      "post": {
+        "operationId": "RbacController_refresh",
+        "summary": "Sync canonical module permissions onto all organizations' system roles (additive — never removes existing permissions)",
+        "description": "Iterates every organization and, for each of the 8 canonical system roles (super_admin, org_admin, hr_manager, finance_manager, dept_manager, field_supervisor, employee, it_admin), adds any canonical permission the role is missing. Never removes a permission a role already has, and never touches custom (non-system) roles. Requires a valid platform (super admin) session token.",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "RBAC sync completed. Returns a summary of roles created/updated/unchanged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": true,
+                    "data": {
+                      "organizationsProcessed": 12,
+                      "rolesCreated": 3,
+                      "rolesUpdated": 40,
+                      "rolesUnchanged": 53,
+                      "permissionsAdded": 187,
+                      "details": [
+                        {
+                          "organizationId": "clx1a2b3c4d5e6f7g8h9",
+                          "organizationName": "Acme Corp",
+                          "roleName": "hr_manager",
+                          "action": "updated",
+                          "addedPermissions": [
+                            "leave:approve",
+                            "onboarding:manage"
+                          ]
+                        }
+                      ]
+                    },
+                    "timestamp": "2026-08-25T10:30:00.000Z"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated — missing or invalid platform session token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "statusCode": 401,
+                    "timestamp": "2026-08-25T10:30:00.000Z",
+                    "path": "/api/v1/platform/rbac/refresh",
+                    "method": "POST",
+                    "message": "Unauthorized"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated but not authorized for platform-level access",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "statusCode": 403,
+                    "timestamp": "2026-08-25T10:30:00.000Z",
+                    "path": "/api/v1/platform/rbac/refresh",
+                    "method": "POST",
+                    "message": "Forbidden"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Platform RBAC"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
     }
   },
   "info": {
@@ -32779,6 +32861,10 @@
     {
       "name": "Platform Plans",
       "description": "Platform Subscription Plans"
+    },
+    {
+      "name": "Platform RBAC",
+      "description": "Platform-Level RBAC Sync — Additively Refreshes Canonical Permissions onto Organizations' System Roles"
     }
   ],
   "servers": [],

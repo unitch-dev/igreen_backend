@@ -94,7 +94,8 @@ export class OnboardingPublicController {
             {
               type: 'AADHAAR',
               fileName: 'aadhaar.pdf',
-              fileUrl: 'https://api.example.com/uploads/ONBOARDING_DOCUMENT/org-1/unassigned/uuid-aadhaar.pdf',
+              fileUrl:
+                'https://api.example.com/uploads/ONBOARDING_DOCUMENT/org-1/unassigned/uuid-aadhaar.pdf',
               fileAssetId: 'a1b2c3d4-...-fileasset',
             },
           ],

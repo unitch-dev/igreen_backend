@@ -358,7 +358,8 @@ export class ChatController {
           senderName: 'Jane Doe',
           content: null,
           messageType: 'file',
-          fileUrl: 'https://api.example.com/uploads/CHAT_ATTACHMENT/org-1/room-1/uuid-timesheet.pdf',
+          fileUrl:
+            'https://api.example.com/uploads/CHAT_ATTACHMENT/org-1/room-1/uuid-timesheet.pdf',
           fileName: 'timesheet.pdf',
           sentAt: '2026-07-13T10:10:00.000Z',
           editedAt: null,

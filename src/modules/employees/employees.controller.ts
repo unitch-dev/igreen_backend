@@ -223,7 +223,8 @@ export class EmployeesController {
             {
               type: 'AADHAAR',
               fileName: 'aadhaar.pdf',
-              fileUrl: 'https://api.example.com/uploads/EMPLOYEE_DOCUMENT/org-1/emp-1/uuid-aadhaar.pdf',
+              fileUrl:
+                'https://api.example.com/uploads/EMPLOYEE_DOCUMENT/org-1/emp-1/uuid-aadhaar.pdf',
               fileAssetId: 'a1b2c3d4-...-fileasset',
               notes: null,
               uploadedAt: '2026-08-24T10:10:00.000Z',
@@ -237,7 +238,8 @@ export class EmployeesController {
   })
   @ApiResponse({
     status: 400,
-    description: 'Rejected file — disallowed mimetype (only PDF/JPG/PNG accepted) or missing documentType',
+    description:
+      'Rejected file — disallowed mimetype (only PDF/JPG/PNG accepted) or missing documentType',
   })
   @ApiBody({
     schema: {

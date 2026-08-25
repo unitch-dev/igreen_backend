@@ -118,6 +118,11 @@ async function bootstrap() {
       .addTag('Platform Organizations', 'Platform-Level Organization Management (Super Admin)')
       .addTag('Platform Invoices', 'Platform Billing & Invoices')
       .addTag('Platform Plans', 'Platform Subscription Plans')
+      .addTag(
+        'Platform RBAC',
+        'Platform-Level RBAC Sync — Additively Refreshes Canonical Permissions onto ' +
+          "Organizations' System Roles",
+      )
       .build();
 
     const document = SwaggerModule.createDocument(app, config);

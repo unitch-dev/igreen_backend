@@ -396,7 +396,7 @@ describe('Dashboards — loan-leave-summary & admin-alerts (e2e)', () => {
       expect(res.body.data.loans.pendingAmount).toBe(35000);
     });
 
-    it("org B sees only its own data (confirms symmetric isolation, not a one-sided filter)", async () => {
+    it('org B sees only its own data (confirms symmetric isolation, not a one-sided filter)', async () => {
       const res = await request(app.getHttpServer())
         .get('/api/v1/dashboards/loan-leave-summary')
         .set(authed(orgB.organizationId, orgB.fullAccessToken))

@@ -167,6 +167,16 @@ export class ReportsService {
       _sum: { lopDays: true },
     });
 
+    const leaveAgg = await this.prisma.leaveApplication.aggregate({
+      where: {
+        employee: employeeFilter,
+        status: LeaveStatus.APPROVED,
+        fromDate: { lte: to },
+        toDate: { gte: from },
+      },
+      _sum: { days: true },
+    });
+
     const employees = await this.prisma.employee.findMany({
       where: employeeFilter,
       select: { id: true, empCode: true, firstName: true, lastName: true },
@@ -186,23 +196,35 @@ export class ReportsService {
             where: { employeeId: emp.id, date: { gte: from, lte: to }, status: 'ABSENT' },
           }),
         ]);
-        const lop = await this.prisma.payrollEntry.aggregate({
-          where: {
-            employeeId: emp.id,
-            payrollRun: {
-              organizationId,
-              ...(query.year && { year: query.year }),
-              ...(query.month && { month: query.month }),
+        const [lop, leaveAggForEmp] = await Promise.all([
+          this.prisma.payrollEntry.aggregate({
+            where: {
+              employeeId: emp.id,
+              payrollRun: {
+                organizationId,
+                ...(query.year && { year: query.year }),
+                ...(query.month && { month: query.month }),
+              },
             },
-          },
-          _sum: { lopDays: true },
-        });
+            _sum: { lopDays: true },
+          }),
+          this.prisma.leaveApplication.aggregate({
+            where: {
+              employeeId: emp.id,
+              status: LeaveStatus.APPROVED,
+              fromDate: { lte: to },
+              toDate: { gte: from },
+            },
+            _sum: { days: true },
+          }),
+        ]);
         return {
           employeeId: emp.id,
           empCode: emp.empCode,
           name: `${emp.firstName} ${emp.lastName}`,
           presentDays: present,
           absentDays: absent,
+          leaveDays: leaveAggForEmp._sum.days ?? 0,
           lopDays: lop._sum.lopDays ?? 0,
         };
       }),
@@ -213,6 +235,7 @@ export class ReportsService {
       to: to.toISOString(),
       totalPresent,
       totalAbsent,
+      totalLeave: leaveAgg._sum.days ?? 0,
       totalLop: lopAgg._sum.lopDays ?? 0,
       byStatus: statusGroups.map((g) => ({ status: g.status, count: g._count.status })),
       rows,
@@ -758,7 +781,11 @@ export class ReportsService {
         take: limit,
       }),
       this.prisma.todoTask.count({
-        where: { status: 'APPROVED', submittedAt: { gte: from, lte: to }, employee: employeeFilter },
+        where: {
+          status: 'APPROVED',
+          submittedAt: { gte: from, lte: to },
+          employee: employeeFilter,
+        },
       }),
       this.prisma.incentiveLedger.aggregate({
         where: { employee: employeeFilter, ...ledgerFilter },
@@ -910,6 +937,8 @@ export class ReportsService {
       'attendance-track',
       'performance',
       'todo-incentive',
+      'attendance',
+      'audit',
     ];
 
     if (resolvedFormat === 'pdf') {
@@ -931,6 +960,10 @@ export class ReportsService {
         );
       } else if (reportType === 'performance') {
         buffer = await this.buildPerformancePdf(await this.performance(organizationId, fullQuery));
+      } else if (reportType === 'attendance') {
+        buffer = await this.buildAttendancePdf(await this.attendance(organizationId, fullQuery));
+      } else if (reportType === 'audit') {
+        buffer = await this.buildAuditPdf(await this.auditHistory(organizationId, fullQuery));
       } else {
         buffer = await this.buildTodoIncentivePdf(
           await this.todoIncentive(organizationId, fullQuery),
@@ -988,6 +1021,7 @@ export class ReportsService {
           { header: 'Name', key: 'name', width: 25 },
           { header: 'Present Days', key: 'presentDays', width: 15 },
           { header: 'Absent Days', key: 'absentDays', width: 15 },
+          { header: 'Leave Days', key: 'leaveDays', width: 14 },
           { header: 'LOP Days', key: 'lopDays', width: 12 },
         ];
         data.rows.forEach((r) => sheet.addRow(r));
@@ -1275,6 +1309,78 @@ export class ReportsService {
       doc.fontSize(9);
       for (const r of data.liveNow) {
         doc.text(`${r.empCode} — ${r.name} | ${r.lat}, ${r.lng} | ${r.recordedAt}`);
+      }
+
+      doc.end();
+    });
+  }
+
+  private buildAttendancePdf(
+    data: Awaited<ReturnType<ReportsService['attendance']>>,
+  ): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      const doc = new PDFDocument({ margin: 40 });
+      const chunks: Buffer[] = [];
+      doc.on('data', (chunk) => chunks.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+
+      doc.fontSize(18).text('Attendance Summary Report', { align: 'center' });
+      doc.moveDown();
+      doc.fontSize(11);
+      doc.text(`Period: ${data.from} to ${data.to}`);
+      doc.moveDown();
+      doc.fontSize(13).text('Totals', { underline: true });
+      doc.fontSize(11);
+      doc.text(`Total present: ${data.totalPresent}`);
+      doc.text(`Total absent: ${data.totalAbsent}`);
+      doc.text(`Total leave: ${data.totalLeave}`);
+      doc.text(`Total LOP: ${data.totalLop}`);
+      doc.moveDown();
+      doc.fontSize(13).text('Per-Employee Breakdown', { underline: true });
+      doc.fontSize(9);
+      for (const r of data.rows) {
+        doc.text(
+          `${r.empCode} — ${r.name} | Present: ${r.presentDays} | Absent: ${r.absentDays} | ` +
+            `Leave: ${r.leaveDays} | LOP: ${r.lopDays}`,
+        );
+      }
+
+      doc.end();
+    });
+  }
+
+  private buildAuditPdf(
+    data: Awaited<ReturnType<ReportsService['auditHistory']>>,
+  ): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      const doc = new PDFDocument({ margin: 40 });
+      const chunks: Buffer[] = [];
+      doc.on('data', (chunk) => chunks.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+
+      doc.fontSize(18).text('Audit Login & History Report', { align: 'center' });
+      doc.moveDown();
+      doc.fontSize(11);
+      doc.text(`Period: ${data.from} to ${data.to}`);
+      doc.text(`Total logins: ${data.totalLogins}`);
+      doc.text(`Failed logins: ${data.failedLogins}`);
+      doc.text(`Unique users: ${data.uniqueUsers}`);
+      doc.moveDown();
+      doc.fontSize(13).text('Login History', { underline: true });
+      doc.fontSize(9);
+      for (const r of data.rows) {
+        doc.text(
+          `${r.email} | ${r.empCode ?? 'N/A'} — ${r.name} | IP: ${r.ipAddress ?? 'N/A'} | ` +
+            `In: ${r.loginAt} | Out: ${r.logoutAt ?? 'N/A'} | Status: ${r.status}`,
+        );
+      }
+      doc.moveDown();
+      doc.fontSize(13).text('System Changes', { underline: true });
+      doc.fontSize(9);
+      for (const a of data.systemChanges) {
+        doc.text(`${a.action} | ${a.entityType} | Actor: ${a.actorId ?? 'N/A'} | ${a.occurredAt}`);
       }
 
       doc.end();
