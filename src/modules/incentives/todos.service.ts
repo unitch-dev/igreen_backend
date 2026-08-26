@@ -199,14 +199,31 @@ export class TodosService {
       return this.toResponse(rejected);
     }
 
-    if (!todo.incentiveRuleId || !todo.incentiveRule || todo.quantity === null) {
+    if (todo.quantity === null) {
       throw new BadRequestException(
-        'Cannot approve: todo has no linked incentive rule or no submitted quantity to compute an incentive amount',
+        'Cannot approve: todo has no submitted quantity to compute an incentive amount',
+      );
+    }
+
+    let incentiveRule = todo.incentiveRule;
+    if (dto.incentiveRuleId && dto.incentiveRuleId !== todo.incentiveRuleId) {
+      incentiveRule = await this.prisma.incentiveRule.findFirst({
+        where: { id: dto.incentiveRuleId, organizationId, isActive: true },
+      });
+      if (!incentiveRule) {
+        throw new BadRequestException(
+          'Incentive rule not found or is inactive for this organization',
+        );
+      }
+    }
+    if (!incentiveRule) {
+      throw new BadRequestException(
+        'Cannot approve: todo has no linked incentive rule. Attach one to approve.',
       );
     }
 
     const now = new Date();
-    const totalAmount = todo.quantity * todo.incentiveRule.rate;
+    const totalAmount = todo.quantity * incentiveRule.rate;
     const payrollMonth = dto.payrollMonth ?? now.getMonth() + 1;
     const payrollYear = dto.payrollYear ?? now.getFullYear();
     const hold = dto.hold ?? false;
@@ -216,6 +233,7 @@ export class TodosService {
         where: { id },
         data: {
           status: TodoStatus.APPROVED,
+          incentiveRuleId: incentiveRule.id,
           reviewedBy: userId,
           reviewedAt: now,
         },

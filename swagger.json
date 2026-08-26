@@ -37855,6 +37855,10 @@
             "example": true,
             "description": "true = approve, false = reject"
           },
+          "incentiveRuleId": {
+            "type": "string",
+            "description": "IncentiveRule UUID to attach at approval time, for a todo that was created without one. Required to approve if the todo still has no linked rule."
+          },
           "rejectionNote": {
             "type": "string",
             "example": "Quantity does not match delivery logs"
