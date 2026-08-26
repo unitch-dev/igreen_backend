@@ -3,13 +3,15 @@ import { AttendanceSource } from '@prisma/client';
 import { IsEnum, IsISO8601, IsNumber, IsOptional } from 'class-validator';
 
 export class CheckInDto {
-  @ApiProperty({ example: 19.076 })
+  @ApiPropertyOptional({ example: 19.076, description: 'Defaults to 0 when GPS is unavailable' })
+  @IsOptional()
   @IsNumber()
-  lat: number;
+  lat?: number;
 
-  @ApiProperty({ example: 72.8777 })
+  @ApiPropertyOptional({ example: 72.8777, description: 'Defaults to 0 when GPS is unavailable' })
+  @IsOptional()
   @IsNumber()
-  lng: number;
+  lng?: number;
 
   @ApiPropertyOptional({ example: 12.5, description: 'GPS accuracy in meters' })
   @IsOptional()

@@ -1,9 +1,14 @@
 /**
- * One-off CSV employee/payroll import seeder.
+ * CSV employee/payroll upsert seeder.
  *
  * Reads `backend/prisma/data/salary_reportJanuary.csv` (a real client payroll
  * export) and writes Department / Designation / PayrollStructure / Employee /
  * User / UserRole rows directly via Prisma — bypassing CreateEmployeeDto.
+ *
+ * Upsert semantics per row (by empCode): inserts a new Employee/User/UserRole
+ * if none exists yet; otherwise updates the existing Employee's fields and
+ * self-heals a missing User link if one somehow wasn't created previously.
+ * Safe to re-run any time the CSV changes.
  *
  * NOT a NestJS module/controller/endpoint. Run via:
  *   npm run seed:employees-payroll
@@ -70,6 +75,7 @@ interface FlagEntry {
 interface ImportReport {
   totalRows: number;
   created: number;
+  updated: number;
   skipped: number;
   skippedDetails: FlagEntry[];
   departmentMappingUsed: Set<string>;
@@ -234,6 +240,7 @@ function newReport(): ImportReport {
   return {
     totalRows: 0,
     created: 0,
+    updated: 0,
     skipped: 0,
     skippedDetails: [],
     departmentMappingUsed: new Set<string>(),
@@ -255,6 +262,7 @@ function writeReportFile(report: ImportReport): void {
   lines.push('');
   lines.push(`- Total rows processed: ${report.totalRows}`);
   lines.push(`- Employees created: ${report.created}`);
+  lines.push(`- Employees updated: ${report.updated}`);
   lines.push(`- Rows skipped: ${report.skipped}`);
   lines.push('');
 
@@ -408,12 +416,10 @@ async function main(): Promise<void> {
     // NOTE: report flags (department mapping, name split, placeholder
     // contact, joining date, payroll NA) are computed for EVERY
     // non-ambiguous row below, regardless of whether this row goes on to
-    // create a new Employee or is skipped as already-existing. This is
-    // deliberate: on an idempotent re-run, every row hits the
-    // "already exists" branch and creates nothing, but the report must
-    // still document the full per-row decision trail every time it is
-    // regenerated — it must never silently regress to an empty report
-    // just because the DB writes were (correctly) skipped.
+    // create a new Employee or update an existing one. This is deliberate:
+    // the report must document the full per-row decision trail every time
+    // it is regenerated, independent of whether the row was an insert or
+    // an update.
 
     // Step 3: resolve/create Department + Designation (idempotent —
     // findFirst-else-create; safe to call even when the row will be skipped).
@@ -450,14 +456,57 @@ async function main(): Promise<void> {
     // Step 7 (joiningDate flag).
     report.unknownJoiningDate.push({ empCode, detail: 'joiningDate unknown from source CSV — left null' });
 
-    // Step 9: idempotency — skip the actual write if Employee already exists.
+    // Step 9: upsert — if the Employee already exists (by empCode), update
+    // its fields in place and self-heal a missing User link (the exact
+    // cause of "No employee record found for the current user" on
+    // employee-scoped routes); otherwise insert a brand-new Employee/User.
     const existingEmployee = await prisma.employee.findFirst({
       where: { organizationId: org.id, empCode },
     });
     if (existingEmployee) {
-      report.skipped += 1;
-      report.skippedDetails.push({ empCode, detail: 'Employee already exists — skipped (idempotent re-run)' });
-      console.log(`  [SKIP] ${empCode} — already exists`);
+      await prisma.$transaction(async (tx) => {
+        await tx.employee.update({
+          where: { id: existingEmployee.id },
+          data: {
+            firstName,
+            lastName,
+            phone,
+            email: placeholderEmail,
+            departmentId,
+            designationId,
+            payrollStructureId,
+            leavePolicyId: casualLeavePolicy.id,
+            employmentType: EmploymentType.FULL_TIME,
+            status: EmployeeStatus.ACTIVE,
+          },
+        });
+
+        const linkedUser = await tx.user.findFirst({
+          where: { employeeId: existingEmployee.id },
+        });
+        if (!linkedUser) {
+          const emailTaken = await tx.user.findFirst({
+            where: { organizationId: org.id, email: placeholderEmail },
+          });
+          if (!emailTaken) {
+            const user = await tx.user.create({
+              data: {
+                organizationId: org.id,
+                employeeId: existingEmployee.id,
+                email: placeholderEmail,
+                phone,
+                passwordHash,
+                mustChangePassword: true,
+                isActive: true,
+              },
+            });
+            await tx.userRole.create({ data: { userId: user.id, roleId: employeeRole.id } });
+          }
+        }
+      });
+
+      report.updated += 1;
+      console.log(`  [UPDATE] ${empCode} — ${firstName} ${lastName} updated`);
       continue;
     }
 
@@ -523,6 +572,7 @@ async function main(): Promise<void> {
   console.log('\nImport complete.');
   console.log(`Total rows processed: ${report.totalRows}`);
   console.log(`Created: ${report.created}`);
+  console.log(`Updated: ${report.updated}`);
   console.log(`Skipped: ${report.skipped}`);
   console.log(`Report written to: ${REPORT_PATH}`);
 }

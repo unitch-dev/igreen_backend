@@ -1,43 +1,18 @@
 # CSV Employee/Payroll Import Report
 
-Generated: 2026-08-21T00:24:18.853Z
+Generated: 2026-08-26T04:45:05.527Z
 
 ## Summary
 
 - Total rows processed: 28
 - Employees created: 0
-- Rows skipped: 28
+- Employees updated: 26
+- Rows skipped: 2
 
 ## Skipped Rows
 
-- **G S1084**: Employee already exists — skipped (idempotent re-run)
-- **Sha1584**: Employee already exists — skipped (idempotent re-run)
-- **Shi1878**: Employee already exists — skipped (idempotent re-run)
-- **Cha1075**: Employee already exists — skipped (idempotent re-run)
-- **K1848**: Employee already exists — skipped (idempotent re-run)
-- **Raj1634**: Employee already exists — skipped (idempotent re-run)
-- **Aru1675**: Employee already exists — skipped (idempotent re-run)
-- **She1264**: Employee already exists — skipped (idempotent re-run)
-- **C1952**: Employee already exists — skipped (idempotent re-run)
-- **P1780**: Employee already exists — skipped (idempotent re-run)
-- **P1835**: Employee already exists — skipped (idempotent re-run)
-- **R1275**: Employee already exists — skipped (idempotent re-run)
-- **Sha1650**: Employee already exists — skipped (idempotent re-run)
-- **Das1142**: Employee already exists — skipped (idempotent re-run)
-- **Man1747**: Employee already exists — skipped (idempotent re-run)
-- **Pal1459**: Employee already exists — skipped (idempotent re-run)
-- **Pan1362**: Employee already exists — skipped (idempotent re-run)
 - **...1694**: ambiguous emp code — needs corrected emp code from client
-- **Kum1284**: Employee already exists — skipped (idempotent re-run)
-- **Tha1708**: Employee already exists — skipped (idempotent re-run)
 - **...1958**: ambiguous emp code — needs corrected emp code from client
-- **Kri1982**: Employee already exists — skipped (idempotent re-run)
-- **Kum1588**: Employee already exists — skipped (idempotent re-run)
-- **Ali1708**: Employee already exists — skipped (idempotent re-run)
-- **B..1921**: Employee already exists — skipped (idempotent re-run)
-- **Vee1740**: Employee already exists — skipped (idempotent re-run)
-- **Pra1921**: Employee already exists — skipped (idempotent re-run)
-- **S..1459**: Employee already exists — skipped (idempotent re-run)
 
 ## Department Mapping Used
 

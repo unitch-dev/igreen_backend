@@ -75,10 +75,15 @@ export class AttendanceService {
       );
     }
 
+    // GPS may be unavailable (denied permission, indoor signal loss, desktop
+    // check-in) — default to 0,0 rather than rejecting the check-in outright.
+    const lat = dto.lat ?? 0;
+    const lng = dto.lng ?? 0;
+
     const checkInLocationName = await this.workLocationsService.resolveLocationName(
       organizationId,
-      dto.lat,
-      dto.lng,
+      lat,
+      lng,
     );
 
     const log = await this.prisma.attendanceLog.create({
@@ -86,8 +91,8 @@ export class AttendanceService {
         employeeId,
         date,
         checkInAt: timestamp,
-        checkInLat: dto.lat,
-        checkInLng: dto.lng,
+        checkInLat: lat,
+        checkInLng: lng,
         checkInLocationName,
         source: dto.source ?? 'MOBILE',
         status: AttendanceStatus.PRESENT,
@@ -95,8 +100,8 @@ export class AttendanceService {
     });
 
     await this.upsertLiveLocation(employeeId, {
-      lat: dto.lat,
-      lng: dto.lng,
+      lat,
+      lng,
       accuracy: dto.accuracy,
     });
 
@@ -119,26 +124,30 @@ export class AttendanceService {
     const totalHours = (timestamp.getTime() - openLog.checkInAt!.getTime()) / MS_PER_HOUR;
     const overtimeHours = Math.max(0, totalHours - STANDARD_WORKDAY_HOURS);
 
-    const checkOutLocationName =
-      dto.lat !== undefined && dto.lng !== undefined
-        ? await this.workLocationsService.resolveLocationName(organizationId, dto.lat, dto.lng)
-        : undefined;
+    // GPS may be unavailable at checkout too — default to 0,0 rather than
+    // rejecting or silently leaving location fields unset (see checkIn above).
+    const lat = dto.lat ?? 0;
+    const lng = dto.lng ?? 0;
+
+    const checkOutLocationName = await this.workLocationsService.resolveLocationName(
+      organizationId,
+      lat,
+      lng,
+    );
 
     const log = await this.prisma.attendanceLog.update({
       where: { id: openLog.id },
       data: {
         checkOutAt: timestamp,
-        checkOutLat: dto.lat,
-        checkOutLng: dto.lng,
+        checkOutLat: lat,
+        checkOutLng: lng,
         checkOutLocationName,
         totalHours,
         overtimeHours,
       },
     });
 
-    if (dto.lat !== undefined && dto.lng !== undefined) {
-      await this.upsertLiveLocation(employeeId, { lat: dto.lat, lng: dto.lng });
-    }
+    await this.upsertLiveLocation(employeeId, { lat, lng });
 
     return log;
   }
