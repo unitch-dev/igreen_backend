@@ -146,18 +146,29 @@ export class GlobalLeaveService {
    * (appliesToAll) entries, plus zone-tagged entries where the employee's
    * Zone matches one of the tagged zones. Skips the zone OR-branch entirely
    * when the employee has no zoneId.
+   *
+   * `employeeId` may be `null` for org-level admin accounts (`org_admin`/
+   * `super_admin`) that have no linked Employee row — this is a read-only,
+   * informational, org-wide holiday calendar endpoint, so a null employeeId
+   * is treated as "no zone" rather than an error: the employee/zone lookup
+   * is skipped entirely and only appliesToAll (org-wide) entries are
+   * returned. See docs/known-issues.md (2026-08-28) for the bug class.
    */
-  async getForEmployee(organizationId: string, employeeId: string, year: number) {
-    const employee = await this.prisma.employee.findFirst({
-      where: { id: employeeId, organizationId, deletedAt: null },
-      select: { id: true, zoneId: true },
-    });
-    if (!employee) throw new NotFoundException('Employee not found');
-
+  async getForEmployee(organizationId: string, employeeId: string | null, year: number) {
     const dateRange = {
       gte: new Date(Date.UTC(year, 0, 1)),
       lt: new Date(Date.UTC(year + 1, 0, 1)),
     };
+
+    let zoneId: string | null = null;
+    if (employeeId) {
+      const employee = await this.prisma.employee.findFirst({
+        where: { id: employeeId, organizationId, deletedAt: null },
+        select: { zoneId: true },
+      });
+      if (!employee) throw new NotFoundException('Employee not found');
+      zoneId = employee.zoneId;
+    }
 
     return this.prisma.globalLeave.findMany({
       where: {
@@ -165,7 +176,7 @@ export class GlobalLeaveService {
         date: dateRange,
         OR: [
           { appliesToAll: true },
-          ...(employee.zoneId ? [{ zones: { some: { id: employee.zoneId } } }] : []),
+          ...(zoneId ? [{ zones: { some: { id: zoneId } } }] : []),
         ],
       },
       orderBy: { date: 'asc' },

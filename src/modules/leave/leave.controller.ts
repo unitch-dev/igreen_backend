@@ -235,7 +235,7 @@ export class LeaveController {
   })
   getMyGlobalLeaves(
     @OrganizationId() organizationId: string,
-    @CurrentUser('employeeId') employeeId: string,
+    @CurrentUser('employeeId') employeeId: string | null,
     @Query('year') year?: string,
   ) {
     const resolvedYear = year ? parseInt(year, 10) : new Date().getFullYear();

@@ -123,6 +123,12 @@ export class ServiceRequestsService {
       }
     }
 
+    if (!isAnonymous && !isSpecialLeave && !currentUser.employeeId) {
+      throw new BadRequestException(
+        'No employee record found for the current user — admin/non-employee accounts cannot raise a self-service request; use the anonymous option or have HR raise it on behalf of an employee via SPECIAL_LEAVE',
+      );
+    }
+
     const priority = this.resolvePriority(dto.category, dto.priority);
     const slaDeadline = this.computeSlaDeadline(priority);
 

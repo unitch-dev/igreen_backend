@@ -711,4 +711,138 @@ describe('Service Requests module (e2e)', () => {
       expect(res.body.data.status).toBe('RESOLVED');
     });
   });
+
+  // ─── Employee-less admin account guard (docs/known-issues.md 2026-08-28) ──
+  //
+  // Uses the REAL seeded iGreen Technologies org + admin@igreentec.in account
+  // (employeeId: null), mirroring the established pattern in
+  // permission-boundaries.e2e-spec.ts, rather than a synthetic fixture --
+  // synthetic orgs have no employee-less user to exercise this guard with.
+  // The org's `allowAnonymousServiceRequests` flag is read up front and
+  // restored to its original value in afterAll so this suite never leaves
+  // shared dev-DB state different from how it found it.
+  describe('Employee-less admin account guard (create)', () => {
+    let orgId: string;
+    let adminToken: string;
+    let targetEmployeeId: string;
+    let leavePolicyTypeId: string;
+    let originalAllowAnonymous: boolean;
+    const createdRequestIds: string[] = [];
+
+    beforeAll(async () => {
+      const org = await prisma.organization.findFirst({
+        where: { name: { contains: 'iGreen' } },
+      });
+      if (!org) throw new Error('Seeded iGreen Technologies org not found — run the seeders first');
+      orgId = org.id;
+      originalAllowAnonymous = org.allowAnonymousServiceRequests;
+      if (!originalAllowAnonymous) {
+        await prisma.organization.update({
+          where: { id: orgId },
+          data: { allowAnonymousServiceRequests: true },
+        });
+      }
+
+      const adminUser = await prisma.user.findFirst({ where: { email: 'admin@igreentec.in' } });
+      if (!adminUser) throw new Error('Seeded admin@igreentec.in not found — run the seeders first');
+      if (adminUser.employeeId !== null) {
+        throw new Error(
+          'Seeded admin@igreentec.in unexpectedly has an employeeId — DB drift from the ' +
+            'documented seed state (docs/known-issues.md 2026-08-18); this guard cannot be ' +
+            'exercised against this account until reseeded.',
+        );
+      }
+
+      const adminLogin = await request(app.getHttpServer())
+        .post('/api/v1/auth/login')
+        .send({ email: 'admin@igreentec.in', password: 'Admin@1234' })
+        .expect(200);
+      adminToken = adminLogin.body.data.accessToken;
+
+      const employee = await prisma.employee.findFirst({
+        where: { organizationId: orgId, status: 'ACTIVE', deletedAt: null },
+        select: { id: true },
+      });
+      if (!employee) throw new Error('No active employee found in seeded iGreen org for SPECIAL_LEAVE target');
+      targetEmployeeId = employee.id;
+
+      const policyType = await prisma.leavePolicyType.findFirst({
+        where: { leavePolicy: { organizationId: orgId, deletedAt: null } },
+        select: { id: true },
+      });
+      if (!policyType) throw new Error('No leave policy type found in seeded iGreen org');
+      leavePolicyTypeId = policyType.id;
+    });
+
+    afterAll(async () => {
+      if (createdRequestIds.length) {
+        await prisma.serviceRequestComment.deleteMany({
+          where: { serviceRequestId: { in: createdRequestIds } },
+        });
+        await prisma.serviceRequest.deleteMany({ where: { id: { in: createdRequestIds } } });
+      }
+      if (!originalAllowAnonymous) {
+        await prisma.organization.update({
+          where: { id: orgId },
+          data: { allowAnonymousServiceRequests: false },
+        });
+      }
+    });
+
+    it('rejects a non-anonymous, non-SPECIAL_LEAVE request from an employee-less admin account with a 400 and the exact guard message', async () => {
+      const res = await createSR(adminToken, orgId, {
+        category: 'IT',
+        title: 'Admin trying to self-raise',
+        description: 'placeholder description text',
+      }).expect(400);
+
+      expect(res.body.message).toBe(
+        'No employee record found for the current user — admin/non-employee accounts cannot ' +
+          'raise a self-service request; use the anonymous option or have HR raise it on behalf ' +
+          'of an employee via SPECIAL_LEAVE',
+      );
+    });
+
+    it('still allows the employee-less admin account to raise an ANONYMOUS request', async () => {
+      const res = await createSR(adminToken, orgId, {
+        category: 'HR',
+        title: 'Admin anonymous request',
+        description: 'placeholder description text',
+        isAnonymous: true,
+      }).expect(201);
+
+      createdRequestIds.push(res.body.data.id);
+      expect(res.body.data.isAnonymous).toBe(true);
+      expect(res.body.data.employeeId).toBeNull();
+    });
+
+    it('still allows the employee-less admin account to raise a SPECIAL_LEAVE request on behalf of a real employee', async () => {
+      const res = await createSR(adminToken, orgId, {
+        category: 'SPECIAL_LEAVE',
+        title: 'Admin-filed special leave',
+        description: 'placeholder description text',
+        employeeId: targetEmployeeId,
+        leavePolicyTypeId,
+        leaveFromDate: '2026-09-01',
+        leaveToDate: '2026-09-02',
+        leaveDays: 2,
+      }).expect(201);
+
+      createdRequestIds.push(res.body.data.id);
+      expect(res.body.data.category).toBe('SPECIAL_LEAVE');
+      expect(res.body.data.employeeId).toBe(targetEmployeeId);
+    });
+
+    it('does not regress the primary path: a regular employee (non-null employeeId) can still raise a normal non-anonymous request', async () => {
+      const org = await createOrgFixture('regular-employee-unaffected');
+      const created = await createSR(org.employeeToken, org.organizationId, {
+        category: 'IT',
+        title: 'Normal employee request unaffected by the admin guard',
+        description: 'placeholder description text',
+      }).expect(201);
+
+      expect(created.body.data.employeeId).toBe(org.employeeId);
+      expect(created.body.data.isAnonymous).toBe(false);
+    });
+  });
 });
