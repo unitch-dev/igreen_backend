@@ -25,7 +25,20 @@ export default () => ({
   },
 
   sms: {
-    fast2smsApiKey: process.env.FAST2SMS_API_KEY,
+    provider: process.env.SMS_PROVIDER || 'smshorizon',
+    smsHorizon: {
+      apiKey: process.env.SMSHORIZON_API_KEY,
+      user: process.env.SMSHORIZON_USER,
+      senderId: process.env.SMSHORIZON_SENDER_ID,
+      templates: {
+        otp: process.env.SMSHORIZON_TID_OTP,
+        onboardingWelcome: process.env.SMSHORIZON_TID_ONBOARDING_WELCOME,
+        onboardingInvite: process.env.SMSHORIZON_TID_ONBOARDING_INVITE,
+        employeeInvite: process.env.SMSHORIZON_TID_EMPLOYEE_INVITE,
+        employeeWelcome: process.env.SMSHORIZON_TID_EMPLOYEE_WELCOME,
+      },
+    },
+    fast2smsApiKey: process.env.FAST2SMS_API_KEY, // legacy/rollback only
   },
 
   firebase: {

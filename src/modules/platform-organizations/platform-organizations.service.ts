@@ -140,6 +140,43 @@ export class PlatformOrganizationsService {
         });
       }
 
+      // 12. Link the admin user to a real Employee record (mirrors
+      // prisma/seed.ts's seedAdminEmployee — see backend CLAUDE.md rule #22
+      // / feedback_rbac_sync_on_new_features): without an Employee, guards
+      // like green-thanks' "No employee record found for the current user"
+      // fire for the org admin. This is a brand-new org, so no idempotency
+      // check is needed here (always creates).
+      const adminDepartment = await tx.department.create({
+        data: { organizationId: org.id, name: 'Administration' },
+      });
+      const adminDesignation = await tx.designation.create({
+        data: { organizationId: org.id, departmentId: adminDepartment.id, name: 'Administrator' },
+      });
+      const [adminFirstName, adminLastName] = dto.adminEmail.split('@')[0].split(/[._-]/);
+      const adminEmployee = await tx.employee.create({
+        data: {
+          organizationId: org.id,
+          empCode: 'ADMIN-0001',
+          firstName: adminFirstName || 'Org',
+          // Employee.lastName is required non-null; fall back to a generic
+          // value when the local-part of the email has no separator.
+          lastName: adminLastName || 'Admin',
+          // Employee.phone is required non-null; dto.phone is optional for
+          // org registration, so fall back to a clearly-fake placeholder.
+          phone: dto.phone ?? '0000000000',
+          email: dto.adminEmail,
+          departmentId: adminDepartment.id,
+          designationId: adminDesignation.id,
+          employmentType: 'FULL_TIME',
+          status: 'ACTIVE',
+          joiningDate: now,
+        },
+      });
+      await tx.user.update({
+        where: { id: user.id },
+        data: { employeeId: adminEmployee.id },
+      });
+
       return { organization: org, subscription, invoice, tempPassword };
     });
   }

@@ -39,6 +39,7 @@ import { ExitModule } from './modules/exit/exit.module';
 import { InsuranceModule } from './modules/insurance/insurance.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { RbacModule } from './modules/rbac/rbac.module';
+import { SmsTemplatesModule } from './modules/sms-templates/sms-templates.module';
 
 @Module({
   controllers: [AppController],
@@ -117,6 +118,7 @@ import { RbacModule } from './modules/rbac/rbac.module';
     InsuranceModule,
     ReportsModule,
     RbacModule,
+    SmsTemplatesModule,
     // Modules to be added as they are developed
     // RemindersModule,
   ],

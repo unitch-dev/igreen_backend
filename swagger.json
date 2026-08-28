@@ -32733,6 +32733,537 @@
           }
         ]
       }
+    },
+    "/api/v1/sms-templates": {
+      "get": {
+        "operationId": "SmsTemplatesController_findAll",
+        "summary": "List all SMS templates",
+        "description": "Global/system-wide list (not tenant-scoped) of the fixed set of SMS templates used across the platform (OTP, onboarding, invite, welcome).",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "List of SMS templates",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/SuccessResponseDto"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/SmsTemplateResponseDto"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request — Validation failed or missing required fields",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Validation failed: email must be a valid email address",
+                    "error": {
+                      "message": [
+                        "email must be a valid email address"
+                      ],
+                      "statusCode": 400,
+                      "path": "/api/v1/example",
+                      "method": "POST"
+                    },
+                    "errorType": "HTTP_400",
+                    "httpCode": 400
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — Invalid or expired token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Invalid or expired token",
+                    "error": {
+                      "message": "Invalid or expired token",
+                      "statusCode": 401,
+                      "path": "/api/v1/example",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_401",
+                    "httpCode": 401
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden — Insufficient permissions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Missing required permissions: payroll:run",
+                    "error": {
+                      "message": "Missing required permissions: payroll:run",
+                      "statusCode": 403,
+                      "path": "/api/v1/example",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_403",
+                    "httpCode": 403
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found — Resource does not exist for this organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Resource not found",
+                    "error": {
+                      "message": "Resource not found",
+                      "statusCode": 404,
+                      "path": "/api/v1/example/123",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_404",
+                    "httpCode": 404
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict — Resource already exists or is in an incompatible state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "A payroll run for 7/2026 already exists for this organization",
+                    "error": {
+                      "message": "A payroll run for 7/2026 already exists for this organization",
+                      "statusCode": 409,
+                      "path": "/api/v1/example",
+                      "method": "POST"
+                    },
+                    "errorType": "HTTP_409",
+                    "httpCode": 409
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Internal server error",
+                    "error": {
+                      "message": "Internal server error",
+                      "statusCode": 500,
+                      "path": "/api/v1/example",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_500",
+                    "httpCode": 500
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "SMS Templates"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/sms-templates/{id}": {
+      "get": {
+        "operationId": "SmsTemplatesController_findOne",
+        "summary": "Get a single SMS template",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "SmsTemplate UUID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SMS template detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/SuccessResponseDto"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/SmsTemplateResponseDto"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request — Validation failed or missing required fields",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Validation failed: email must be a valid email address",
+                    "error": {
+                      "message": [
+                        "email must be a valid email address"
+                      ],
+                      "statusCode": 400,
+                      "path": "/api/v1/example",
+                      "method": "POST"
+                    },
+                    "errorType": "HTTP_400",
+                    "httpCode": 400
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — Invalid or expired token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Invalid or expired token",
+                    "error": {
+                      "message": "Invalid or expired token",
+                      "statusCode": 401,
+                      "path": "/api/v1/example",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_401",
+                    "httpCode": 401
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden — Insufficient permissions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Missing required permissions: payroll:run",
+                    "error": {
+                      "message": "Missing required permissions: payroll:run",
+                      "statusCode": 403,
+                      "path": "/api/v1/example",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_403",
+                    "httpCode": 403
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found — Resource does not exist for this organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Resource not found",
+                    "error": {
+                      "message": "Resource not found",
+                      "statusCode": 404,
+                      "path": "/api/v1/example/123",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_404",
+                    "httpCode": 404
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict — Resource already exists or is in an incompatible state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "A payroll run for 7/2026 already exists for this organization",
+                    "error": {
+                      "message": "A payroll run for 7/2026 already exists for this organization",
+                      "statusCode": 409,
+                      "path": "/api/v1/example",
+                      "method": "POST"
+                    },
+                    "errorType": "HTTP_409",
+                    "httpCode": 409
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Internal server error",
+                    "error": {
+                      "message": "Internal server error",
+                      "statusCode": 500,
+                      "path": "/api/v1/example",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_500",
+                    "httpCode": 500
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "SMS Templates"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "put": {
+        "operationId": "SmsTemplatesController_update",
+        "summary": "Update an SMS template",
+        "description": "Updates message/tid/senderId/isActive only — key and name are system-defined.",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "SmsTemplate UUID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSmsTemplateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "SMS template updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/SuccessResponseDto"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/SmsTemplateResponseDto"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request — Validation failed or missing required fields",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Validation failed: email must be a valid email address",
+                    "error": {
+                      "message": [
+                        "email must be a valid email address"
+                      ],
+                      "statusCode": 400,
+                      "path": "/api/v1/example",
+                      "method": "POST"
+                    },
+                    "errorType": "HTTP_400",
+                    "httpCode": 400
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — Invalid or expired token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Invalid or expired token",
+                    "error": {
+                      "message": "Invalid or expired token",
+                      "statusCode": 401,
+                      "path": "/api/v1/example",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_401",
+                    "httpCode": 401
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden — Insufficient permissions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Missing required permissions: payroll:run",
+                    "error": {
+                      "message": "Missing required permissions: payroll:run",
+                      "statusCode": 403,
+                      "path": "/api/v1/example",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_403",
+                    "httpCode": 403
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found — Resource does not exist for this organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Resource not found",
+                    "error": {
+                      "message": "Resource not found",
+                      "statusCode": 404,
+                      "path": "/api/v1/example/123",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_404",
+                    "httpCode": 404
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict — Resource already exists or is in an incompatible state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "A payroll run for 7/2026 already exists for this organization",
+                    "error": {
+                      "message": "A payroll run for 7/2026 already exists for this organization",
+                      "statusCode": 409,
+                      "path": "/api/v1/example",
+                      "method": "POST"
+                    },
+                    "errorType": "HTTP_409",
+                    "httpCode": 409
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Internal server error",
+                    "error": {
+                      "message": "Internal server error",
+                      "statusCode": 500,
+                      "path": "/api/v1/example",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_500",
+                    "httpCode": 500
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "SMS Templates"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
     }
   },
   "info": {
@@ -32865,6 +33396,10 @@
     {
       "name": "Platform RBAC",
       "description": "Platform-Level RBAC Sync — Additively Refreshes Canonical Permissions onto Organizations' System Roles"
+    },
+    {
+      "name": "SMS Templates",
+      "description": "Global/System-Wide SMS Template Management (OTP, Onboarding, Invite, Welcome) — Not Tenant-Scoped"
     }
   ],
   "servers": [],
@@ -41453,6 +41988,76 @@
           "rows",
           "meta",
           "systemChanges"
+        ]
+      },
+      "SmsTemplateResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "tid": {
+            "type": "string",
+            "nullable": true
+          },
+          "senderId": {
+            "type": "string",
+            "nullable": true
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "name",
+          "message",
+          "isActive",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "UpdateSmsTemplateDto": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "Rendered message template with {{placeholder}} tokens"
+          },
+          "tid": {
+            "type": "string",
+            "nullable": true,
+            "description": "DLT template id registered with the SMS provider"
+          },
+          "senderId": {
+            "type": "string",
+            "nullable": true,
+            "description": "Override sender id; falls back to the org-wide default"
+          },
+          "isActive": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "message"
         ]
       }
     }

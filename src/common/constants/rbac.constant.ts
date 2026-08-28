@@ -99,6 +99,10 @@ export const PERMISSIONS = {
   GREEN_THANKS_READ: 'green_thanks:read',
   GREEN_THANKS_CREATE: 'green_thanks:create',
   GREEN_THANKS_MANAGE: 'green_thanks:manage',
+
+  // SMS Templates
+  SMS_TEMPLATE_READ: 'sms_template:read',
+  SMS_TEMPLATE_UPDATE: 'sms_template:update',
 } as const;
 
 export const SYSTEM_ROLES = [
@@ -169,6 +173,8 @@ export const SYSTEM_ROLES = [
       PERMISSIONS.GREEN_THANKS_READ,
       PERMISSIONS.GREEN_THANKS_CREATE,
       PERMISSIONS.GREEN_THANKS_MANAGE,
+      PERMISSIONS.SMS_TEMPLATE_READ,
+      PERMISSIONS.SMS_TEMPLATE_UPDATE,
     ],
   },
   {

@@ -361,26 +361,48 @@ describe('Leave module — maker-checker self-approval guard (e2e)', () => {
     });
 
     it('org_admin account (employeeId: null) gets 200 with only appliesToAll entries, not the 500 from the bug', async () => {
-      const adminUser = await prisma.user.findFirst({ where: { email: 'admin@igreentec.in' } });
-      if (!adminUser) throw new Error('Seeded admin@igreentec.in not found — run the seeders first');
-      if (adminUser.employeeId !== null) {
-        throw new Error(
-          'Seeded admin@igreentec.in unexpectedly has an employeeId — DB drift from the ' +
-            'documented seed state; this guard cannot be exercised until reseeded.',
-        );
-      }
+      // NOTE (2026-08-28): this used to log in as the REAL seeded
+      // admin@igreentec.in account because it had employeeId: null. That
+      // account is now deliberately linked to a real Employee record by
+      // prisma/seed.ts::seedAdminEmployee (see docs/known-issues.md), so it
+      // no longer exercises the employee-less path. Build a dedicated
+      // synthetic employee-less user instead (a Role assigned to a User
+      // with no `employeeId`), scoped to its own throwaway org.
+      const adminOrgSlug = `leave-e2e-employeeless-admin-${uuid()}`;
+      const adminOrg = await prisma.organization.create({
+        data: { name: `Leave E2E Employeeless Admin`, slug: adminOrgSlug, isActive: true },
+      });
+      const adminOrgId = adminOrg.id;
+      createdOrgIds.push(adminOrgId);
+
+      const adminRole = await prisma.role.create({
+        data: {
+          organizationId: adminOrgId,
+          name: `leave-e2e-employeeless-admin-${uuid()}`,
+          description: 'Employee-less admin role (no employeeId on the User)',
+          permissions: ['leave:read'],
+          isSystemRole: false,
+        },
+      });
+      const adminPasswordHash = await bcrypt.hash('Test@1234', 10);
+      const adminUser = await prisma.user.create({
+        data: {
+          organizationId: adminOrgId,
+          // Deliberately no employeeId — this is the exact condition the
+          // guard under test defends against.
+          email: `admin-employeeless-${uuid()}@leave-e2e.test`,
+          passwordHash: adminPasswordHash,
+          isActive: true,
+        },
+      });
+      await prisma.userRole.create({ data: { userId: adminUser.id, roleId: adminRole.id } });
 
       const adminLogin = await request(app.getHttpServer())
         .post('/api/v1/auth/login')
-        .send({ email: 'admin@igreentec.in', password: 'Admin@1234' })
+        .send({ email: adminUser.email, password: 'Test@1234' })
         .expect(200);
       const adminToken = adminLogin.body.data.accessToken as string;
 
-      // Admin's real org is used (its employee-less user has no membership
-      // in the synthetic `org` fixture above), so create the same
-      // appliesToAll/zone-tagged pair scoped to the admin's actual org for
-      // this one assertion, and clean them up locally.
-      const adminOrgId = adminUser.organizationId;
       const adminZone = await prisma.zone.create({
         data: { organizationId: adminOrgId, name: `Admin Guard Zone ${uuid()}`, isActive: true },
       });

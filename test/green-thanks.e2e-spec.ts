@@ -625,4 +625,102 @@ describe('Green Thanks module (e2e)', () => {
       expect(res.body.data.status).toBe('approved');
     });
   });
+
+  // ─── SEEDED ADMIN REGRESSION (docs/known-issues.md 2026-08-28) ────────────
+  //
+  // Before prisma/seed.ts::seedAdminEmployee, admin@igreentec.in had
+  // employeeId: null, which tripped the "No employee record found for the
+  // current user" guard on every send. The fix links the seeded admin to a
+  // real Employee (ADMIN-0001); these tests confirm sending now works while
+  // the self-send/recipient-not-found guards remain intact.
+  describe('Seeded admin@igreentec.in account (now linked to a real employee)', () => {
+    let adminToken: string;
+    let adminOrgId: string;
+    let adminEmployeeId: string;
+    let otherEmployeeId: string;
+    const createdIds: string[] = [];
+
+    beforeAll(async () => {
+      const adminUser = await prisma.user.findFirst({ where: { email: 'admin@igreentec.in' } });
+      if (!adminUser) throw new Error('Seeded admin@igreentec.in not found — run the seeders first');
+      if (!adminUser.employeeId) {
+        throw new Error(
+          'Seeded admin@igreentec.in has no employeeId — run `npm run prisma:seed` to apply the ' +
+            'seedAdminEmployee fix before running this suite.',
+        );
+      }
+      adminOrgId = adminUser.organizationId;
+      adminEmployeeId = adminUser.employeeId;
+
+      const login = await request(app.getHttpServer())
+        .post('/api/v1/auth/login')
+        .send({ email: 'admin@igreentec.in', password: 'Admin@1234' })
+        .expect(200);
+      adminToken = login.body.data.accessToken;
+
+      const anotherEmployee = await prisma.employee.findFirst({
+        where: { organizationId: adminOrgId, status: 'ACTIVE', deletedAt: null, id: { not: adminEmployeeId } },
+        select: { id: true },
+      });
+      if (!anotherEmployee) {
+        throw new Error('No other active employee found in the seeded iGreen org to send thanks to');
+      }
+      otherEmployeeId = anotherEmployee.id;
+
+      // Keep this well within the org's quarterly limit regardless of what
+      // else has already been sent this quarter in shared dev-DB state.
+      const existingConfig = await prisma.greenThanksConfig.findFirst({
+        where: { organizationId: adminOrgId },
+      });
+      if (existingConfig) {
+        await prisma.greenThanksConfig.update({
+          where: { id: existingConfig.id },
+          data: { quarterlyLimitPoints: 100000 },
+        });
+      } else {
+        await prisma.greenThanksConfig.create({
+          data: {
+            organizationId: adminOrgId,
+            quarterlyLimitPoints: 100000,
+            effectiveFrom: new Date(),
+          },
+        });
+      }
+    });
+
+    afterAll(async () => {
+      if (createdIds.length) {
+        await prisma.greenThanks.deleteMany({ where: { id: { in: createdIds } } });
+      }
+    });
+
+    it('POST /green-thanks to a real different employee no longer 400s with "No employee record found"', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/green-thanks')
+        .set(authed(adminToken, adminOrgId))
+        .send({ toEmployeeId: otherEmployeeId, points: 1, reason: 'Admin regression check' })
+        .expect(201);
+      createdIds.push(res.body.data.id);
+      expect(res.body.data.status).toBe('pending');
+      expect(res.body.data.fromEmployeeId).toBe(adminEmployeeId);
+    });
+
+    it('self-send (admin sending to their own now-existing employeeId) still 400s', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/green-thanks')
+        .set(authed(adminToken, adminOrgId))
+        .send({ toEmployeeId: adminEmployeeId, points: 1, reason: 'Thanking myself' })
+        .expect(400);
+      expect(res.body.message).toMatch(/yourself/i);
+    });
+
+    it('sending to a non-existent recipient still 404s', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/green-thanks')
+        .set(authed(adminToken, adminOrgId))
+        .send({ toEmployeeId: uuid(), points: 1, reason: 'Nonexistent recipient' })
+        .expect(404);
+      expect(res.body.message).toMatch(/not found/i);
+    });
+  });
 });

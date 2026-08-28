@@ -1805,6 +1805,26 @@ model FileAsset {
   @@map("file_assets")
 }
 
+// ─── SMS TEMPLATES ─────────────────────────────────────────────────────────────
+// Global/system-wide table (NOT tenant-scoped — matches the single shared
+// SMSHorizon account used across all organizations). `key` matches the
+// `SmsTemplateKey` union in notifications.service.ts.
+model SmsTemplate {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  name        String
+  message     String   @db.Text
+  tid         String?
+  senderId    String?
+  isActive    Boolean  @default(true)
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("sms_templates")
+}
+
 // ─── AUDIT LOGS ───────────────────────────────────────────────────────────────
 
 model AuditLog {

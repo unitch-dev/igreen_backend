@@ -186,11 +186,11 @@ export class AuthService {
 
     await this.redis.saveOtp(phone, otp, 300);
 
-    // In production, call Fast2SMS here. Logged to console in dev.
+    // In production, dispatch via SMSHorizon. Logged to console in dev.
     if (this.config.get('nodeEnv') !== 'production') {
       console.log(`[DEV OTP] Phone: ${phone} → OTP: ${otp}`);
     } else {
-      await this.dispatchSms(phone, `Your IGreen HRMS login OTP is: ${otp}. Valid for 5 minutes.`);
+      await this.notifications.sendSms(phone, 'otp', { otp });
     }
 
     return {
@@ -445,18 +445,5 @@ export class AuthService {
       </div>
     `;
     await this.notifications.sendEmail(email, 'HRMS Password Changed', html);
-  }
-
-  private async dispatchSms(phone: string, message: string) {
-    const axios = (await import('axios')).default;
-    await axios.get('https://www.fast2sms.com/dev/bulkV2', {
-      params: {
-        authorization: this.config.get('sms.fast2smsApiKey'),
-        message,
-        language: 'english',
-        route: 'q',
-        numbers: phone,
-      },
-    });
   }
 }

@@ -56,6 +56,7 @@ export function ApiSuccessResponse<T extends Type<unknown>>(
   model: T,
   description = 'Success',
   status = 200,
+  isArray = false,
 ) {
   return applyDecorators(
     ApiExtraModels(SuccessResponseDto, model),
@@ -67,7 +68,9 @@ export function ApiSuccessResponse<T extends Type<unknown>>(
           { $ref: getSchemaPath(SuccessResponseDto) },
           {
             properties: {
-              data: { $ref: getSchemaPath(model) },
+              data: isArray
+                ? { type: 'array', items: { $ref: getSchemaPath(model) } }
+                : { $ref: getSchemaPath(model) },
             },
           },
         ],

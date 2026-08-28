@@ -1,4 +1,4 @@
-import { LeaveType, PrismaClient } from '@prisma/client';
+import { EmployeeStatus, EmploymentType, LeaveType, PrismaClient, User } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -65,6 +65,57 @@ async function seedSubscriptionPlans(prisma: PrismaClient) {
     });
   }
   console.log('Subscription plans seeded');
+}
+
+async function seedSmsTemplates(prisma: PrismaClient) {
+  const templates = [
+    {
+      key: 'otp',
+      name: 'Login OTP',
+      message: 'Your IGreen HRMS login OTP is: {{otp}}. Valid for 5 minutes.',
+    },
+    {
+      key: 'onboardingWelcome',
+      name: 'Onboarding Welcome (Portal)',
+      message:
+        "Welcome! Your Employee ID: {{empCode}}. Login: {{email}}, Temp Password: {{tempPassword}}. Change password on first login.",
+    },
+    {
+      key: 'onboardingInvite',
+      name: 'Onboarding Invite Link',
+      message: "You've been invited to join the team. Complete your onboarding at: {{link}}",
+    },
+    {
+      key: 'employeeInvite',
+      name: 'Employee Invite (Direct Add)',
+      message:
+        'Welcome! Your Employee ID: {{empCode}}. Email: {{email}}, Temp Password: {{tempPassword}}. Change password on first login.',
+    },
+    {
+      key: 'employeeWelcome',
+      name: 'Employee Activation Welcome',
+      message:
+        'Welcome {{firstName}}! Your HRMS account ({{empCode}}) is now active. Login at: {{loginUrl}}',
+    },
+  ];
+
+  for (const template of templates) {
+    // update: {} — idempotent no-op so an admin's edited message/tid/senderId
+    // survive reseed; only ever creates the row on first run.
+    await prisma.smsTemplate.upsert({
+      where: { key: template.key },
+      update: {},
+      create: {
+        key: template.key,
+        name: template.name,
+        message: template.message,
+        tid: null,
+        senderId: null,
+        isActive: true,
+      },
+    });
+  }
+  console.log('SMS templates seeded');
 }
 
 async function seedDefaultLeavePolicies(prisma: PrismaClient, organizationId: string) {
@@ -353,6 +404,66 @@ async function seedOrgLogo(prismaClient: PrismaClient, organizationId: string): 
   }
 }
 
+/**
+ * Links the seeded admin User to a real Employee record. Without this, the
+ * admin account has User.employeeId === null, which trips guards like
+ * green-thanks' "No employee record found for the current user" (rule #22).
+ * Safe to re-run indefinitely: once adminUser.employeeId is set, this is a
+ * no-op.
+ */
+async function seedAdminEmployee(
+  prismaClient: PrismaClient,
+  organizationId: string,
+  adminUser: User,
+) {
+  if (adminUser.employeeId) {
+    console.log('  Admin user already linked to an employee, skipping');
+    return;
+  }
+
+  const department = await prismaClient.department.upsert({
+    where: { organizationId_name: { organizationId, name: 'Administration' } },
+    update: {},
+    create: { organizationId, name: 'Administration' },
+  });
+  console.log(`  Department ready: ${department.name}`);
+
+  let designation = await prismaClient.designation.findFirst({
+    where: { organizationId, departmentId: department.id, name: 'Administrator' },
+  });
+  if (!designation) {
+    designation = await prismaClient.designation.create({
+      data: { organizationId, departmentId: department.id, name: 'Administrator' },
+    });
+    console.log(`  Designation created: ${designation.name}`);
+  } else {
+    console.log(`  Designation already exists: ${designation.name}`);
+  }
+
+  const employee = await prismaClient.employee.create({
+    data: {
+      organizationId,
+      empCode: 'ADMIN-0001',
+      firstName: 'Super',
+      lastName: 'Admin',
+      phone: adminUser.phone,
+      email: adminUser.email,
+      departmentId: department.id,
+      designationId: designation.id,
+      employmentType: EmploymentType.FULL_TIME,
+      status: EmployeeStatus.ACTIVE,
+      joiningDate: new Date(),
+    },
+  });
+  console.log(`  Employee created: ${employee.empCode}`);
+
+  await prismaClient.user.update({
+    where: { id: adminUser.id },
+    data: { employeeId: employee.id },
+  });
+  console.log(`  Linked admin user ${adminUser.email} to employee ${employee.empCode}`);
+}
+
 async function main() {
   console.log('Seeding database...');
 
@@ -428,10 +539,13 @@ async function main() {
     console.log(`  Assigned super_admin role to ${adminUser.email}`);
   }
 
+  await seedAdminEmployee(prisma, org.id, adminUser);
+
   await seedDefaultLeavePolicies(prisma, org.id);
   await seedDashboardDefaults(prisma, org.id);
   await seedSubscriptionPlans(prisma);
   await seedPlatformAdmin(prisma);
+  await seedSmsTemplates(prisma);
 
   // KPI seeding must run after employees/designations exist (populated by
   // prisma/seed-employees-payroll.ts); both helpers are backfill-only/idempotent.

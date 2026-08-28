@@ -712,66 +712,106 @@ describe('Service Requests module (e2e)', () => {
     });
   });
 
-  // ─── Employee-less admin account guard (docs/known-issues.md 2026-08-28) ──
+  // ─── Employee-less admin account guard ────────────────────────────────────
   //
-  // Uses the REAL seeded iGreen Technologies org + admin@igreentec.in account
-  // (employeeId: null), mirroring the established pattern in
-  // permission-boundaries.e2e-spec.ts, rather than a synthetic fixture --
-  // synthetic orgs have no employee-less user to exercise this guard with.
-  // The org's `allowAnonymousServiceRequests` flag is read up front and
-  // restored to its original value in afterAll so this suite never leaves
-  // shared dev-DB state different from how it found it.
+  // NOTE (2026-08-28): this used to piggyback on the REAL seeded
+  // admin@igreentec.in account because it had employeeId: null. That account
+  // is now deliberately linked to a real Employee record by
+  // prisma/seed.ts::seedAdminEmployee (see docs/known-issues.md), so it can
+  // no longer be used to exercise this guard. Instead we build a fully
+  // synthetic, throwaway org here with a dedicated employee-less user
+  // (a Role assigned to a User with no `employeeId`), which is the correct,
+  // isolated way to test this — it doesn't depend on shared dev-DB seed
+  // state at all.
   describe('Employee-less admin account guard (create)', () => {
     let orgId: string;
     let adminToken: string;
     let targetEmployeeId: string;
     let leavePolicyTypeId: string;
-    let originalAllowAnonymous: boolean;
+    let leavePolicyId: string;
     const createdRequestIds: string[] = [];
 
     beforeAll(async () => {
-      const org = await prisma.organization.findFirst({
-        where: { name: { contains: 'iGreen' } },
+      const label = 'employeeless-admin';
+      const slug = `sr-e2e-${label}-${uuid()}`;
+      const org = await prisma.organization.create({
+        data: {
+          name: `SR E2E ${label}`,
+          slug,
+          isActive: true,
+          allowAnonymousServiceRequests: true,
+        },
       });
-      if (!org) throw new Error('Seeded iGreen Technologies org not found — run the seeders first');
+      createdOrgIds.push(org.id);
       orgId = org.id;
-      originalAllowAnonymous = org.allowAnonymousServiceRequests;
-      if (!originalAllowAnonymous) {
-        await prisma.organization.update({
-          where: { id: orgId },
-          data: { allowAnonymousServiceRequests: true },
-        });
-      }
 
-      const adminUser = await prisma.user.findFirst({ where: { email: 'admin@igreentec.in' } });
-      if (!adminUser) throw new Error('Seeded admin@igreentec.in not found — run the seeders first');
-      if (adminUser.employeeId !== null) {
-        throw new Error(
-          'Seeded admin@igreentec.in unexpectedly has an employeeId — DB drift from the ' +
-            'documented seed state (docs/known-issues.md 2026-08-18); this guard cannot be ' +
-            'exercised against this account until reseeded.',
-        );
-      }
+      const adminRole = await prisma.role.create({
+        data: {
+          organizationId: org.id,
+          name: `sr-e2e-employeeless-admin-${uuid()}`,
+          description: 'Employee-less admin role (no employeeId on the User)',
+          permissions: ['service_request:read', 'service_request:create', 'service_request:manage'],
+          isSystemRole: false,
+        },
+      });
+
+      const passwordHash = await bcrypt.hash(PASSWORD, 10);
+      const adminUser = await prisma.user.create({
+        data: {
+          organizationId: org.id,
+          // Deliberately no employeeId — this is the exact condition the
+          // guard under test defends against.
+          email: `admin-${label}-${uuid()}@sr-e2e.test`,
+          passwordHash,
+          isActive: true,
+        },
+      });
+      await prisma.userRole.create({ data: { userId: adminUser.id, roleId: adminRole.id } });
 
       const adminLogin = await request(app.getHttpServer())
         .post('/api/v1/auth/login')
-        .send({ email: 'admin@igreentec.in', password: 'Admin@1234' })
+        .send({ email: adminUser.email, password: PASSWORD })
         .expect(200);
       adminToken = adminLogin.body.data.accessToken;
 
-      const employee = await prisma.employee.findFirst({
-        where: { organizationId: orgId, status: 'ACTIVE', deletedAt: null },
-        select: { id: true },
+      // A real target employee for the SPECIAL_LEAVE-on-behalf-of case.
+      const dept = await prisma.department.create({
+        data: { organizationId: org.id, name: `Dept ${label}` },
       });
-      if (!employee) throw new Error('No active employee found in seeded iGreen org for SPECIAL_LEAVE target');
-      targetEmployeeId = employee.id;
+      const designation = await prisma.designation.create({
+        data: { organizationId: org.id, departmentId: dept.id, name: `Designation ${label}` },
+      });
+      const targetEmployee = await prisma.employee.create({
+        data: {
+          organizationId: org.id,
+          empCode: `TGT-${label}`,
+          firstName: 'Target',
+          lastName: label,
+          phone: `9${label.length}${Date.now() % 100000}9`,
+          departmentId: dept.id,
+          designationId: designation.id,
+          status: 'ACTIVE',
+        },
+      });
+      targetEmployeeId = targetEmployee.id;
 
-      const policyType = await prisma.leavePolicyType.findFirst({
-        where: { leavePolicy: { organizationId: orgId, deletedAt: null } },
-        select: { id: true },
+      const leavePolicy = await prisma.leavePolicy.create({
+        data: {
+          organizationId: org.id,
+          name: `Policy ${label}`,
+          isActive: true,
+          types: {
+            create: {
+              leaveType: 'CASUAL',
+              name: 'Casual Leave',
+              daysPerYear: 12,
+            },
+          },
+        },
+        include: { types: true },
       });
-      if (!policyType) throw new Error('No leave policy type found in seeded iGreen org');
-      leavePolicyTypeId = policyType.id;
+      leavePolicyTypeId = leavePolicy.types[0].id;
+      leavePolicyId = leavePolicy.id;
     });
 
     afterAll(async () => {
@@ -781,11 +821,12 @@ describe('Service Requests module (e2e)', () => {
         });
         await prisma.serviceRequest.deleteMany({ where: { id: { in: createdRequestIds } } });
       }
-      if (!originalAllowAnonymous) {
-        await prisma.organization.update({
-          where: { id: orgId },
-          data: { allowAnonymousServiceRequests: false },
-        });
+      // LeavePolicyType is a required FK on the SPECIAL_LEAVE request above;
+      // it must be gone (via the serviceRequest delete) before this, and
+      // LeavePolicy itself must be gone before the org-cascade cleanup in
+      // the outer afterAll or `organization.deleteMany` FK-violates.
+      if (leavePolicyId) {
+        await prisma.leavePolicy.delete({ where: { id: leavePolicyId } });
       }
     });
 

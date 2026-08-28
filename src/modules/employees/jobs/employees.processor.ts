@@ -152,10 +152,11 @@ export class EmployeesProcessor extends WorkerHost {
     );
     await Promise.allSettled([
       this.notifications.sendEmail(data.email, 'Welcome — Complete Your Onboarding', html),
-      this.notifications.sendSms(
-        data.phone,
-        `Welcome! Your Employee ID: ${data.empCode}. Email: ${data.email}, Temp Password: ${data.tempPassword}. Change password on first login.`,
-      ),
+      this.notifications.sendSms(data.phone, 'employeeInvite', {
+        empCode: data.empCode,
+        email: data.email,
+        tempPassword: data.tempPassword,
+      }),
     ]);
     this.logger.log(`Onboarding invite sent for employee ${data.employeeId}`);
   }
@@ -168,10 +169,11 @@ export class EmployeesProcessor extends WorkerHost {
         'Welcome to the Team — Your Account is Active',
         html,
       ),
-      this.notifications.sendSms(
-        data.phone,
-        `Welcome ${data.firstName}! Your HRMS account (${data.empCode}) is now active. Login at: ${data.loginUrl}`,
-      ),
+      this.notifications.sendSms(data.phone, 'employeeWelcome', {
+        firstName: data.firstName,
+        empCode: data.empCode,
+        loginUrl: data.loginUrl,
+      }),
     ]);
     this.logger.log(`Welcome email sent for employee ${data.employeeId}`);
   }

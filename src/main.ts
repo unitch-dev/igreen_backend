@@ -123,6 +123,11 @@ async function bootstrap() {
         'Platform-Level RBAC Sync — Additively Refreshes Canonical Permissions onto ' +
           "Organizations' System Roles",
       )
+      .addTag(
+        'SMS Templates',
+        'Global/System-Wide SMS Template Management (OTP, Onboarding, Invite, Welcome) — ' +
+          'Not Tenant-Scoped',
+      )
       .build();
 
     const document = SwaggerModule.createDocument(app, config);
