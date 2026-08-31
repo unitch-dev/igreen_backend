@@ -6,7 +6,15 @@ import * as PDFDocument from 'pdfkit';
 import { PrismaService } from '@prisma/prisma.service';
 import { QueryReportDto } from './dto/query-report.dto';
 import { ReportExportFormat } from './dto/export-report.dto';
-import { addFooter, addLetterhead, drawTable, resolveLogoPath } from './pdf/pdf-layout.util';
+import {
+  addFooter,
+  addLetterhead,
+  drawLabelValueGrid,
+  drawList,
+  drawStatCards,
+  drawTable,
+  resolveLogoPath,
+} from './pdf/pdf-layout.util';
 
 interface LetterheadInfo {
   orgName: string;
@@ -1287,28 +1295,53 @@ export class ReportsService {
 
       addLetterhead(doc, { ...letterhead, reportTitle: 'Payroll Summary Report' });
 
-      doc.fontSize(11);
-      doc.text(`Period: ${data.month}/${data.year}`);
-      doc.text(`Run status: ${data.status ?? 'N/A'}`);
-      doc.text(`Employees paid: ${data.employeeCount}`);
-      doc.moveDown();
-      doc.fontSize(13).text('Totals', { underline: true });
-      doc.fontSize(11);
-      doc.text(`Total gross salary: ${data.totalGross.toFixed(2)}`);
-      doc.text(`Total net disbursed: ${data.totalDisbursed.toFixed(2)}`);
-      doc.moveDown();
+      doc.fontSize(11).text(`Period: ${data.month}/${data.year}`);
+      doc.moveDown(0.5);
+      drawStatCards(doc, [
+        { label: 'Employees', value: String(data.employeeCount) },
+        { label: 'Total Gross', value: data.totalGross.toFixed(2) },
+        { label: 'Total Disbursed', value: data.totalDisbursed.toFixed(2) },
+        { label: 'Status', value: data.status ?? 'N/A' },
+      ]);
+
+      const componentLabels: Record<string, string> = {
+        basicSalary: 'Basic Salary',
+        hra: 'HRA',
+        specialAllowance: 'Special Allowance',
+        educationAllowance: 'Education Allowance',
+        otherAllowances: 'Other Allowances',
+        incentiveAmount: 'Incentive Amount',
+        overtimeAmount: 'Overtime Amount',
+        travelAllowance: 'Travel Allowance',
+        bonus: 'Bonus',
+        greenThanksAmount: 'Green Thanks Amount',
+        pfEmployee: 'PF (Employee)',
+        pfEmployer: 'PF (Employer)',
+        esiEmployee: 'ESI (Employee)',
+        esiEmployer: 'ESI (Employer)',
+        professionalTax: 'Professional Tax',
+        tds: 'TDS',
+        loanDeduction: 'Loan Deduction',
+        advanceDeduction: 'Advance Deduction',
+        otherDeductions: 'Other Deductions',
+      };
       doc.fontSize(13).text('Component Breakdown', { underline: true });
-      doc.fontSize(11);
-      for (const [key, value] of Object.entries(data.componentBreakdown)) {
-        doc.text(`${key}: ${Number(value).toFixed(2)}`);
-      }
+      doc.moveDown(0.5);
+      drawLabelValueGrid(
+        doc,
+        Object.entries(data.componentBreakdown).map(([key, value]) => ({
+          label: componentLabels[key] ?? key,
+          value: Number(value).toFixed(2),
+        })),
+        3,
+      );
 
       doc.moveDown();
       doc.fontSize(13).text('Per-Employee Breakdown', { underline: true });
       doc.moveDown(0.5);
       drawTable(doc, {
-        headers: ['Emp Code', 'Name', 'Gross', 'Net', 'PF(E)', 'ESI(E)', 'TDS', 'Loan Ded', 'Other Ded'],
-        columnWidths: [50, 90, 55, 55, 50, 50, 45, 60, 60],
+        headers: ['Emp Code', 'Name', 'Gross Salary', 'Net Salary', 'PF (Employee)', 'ESI (Employee)', 'TDS', 'Loan Deduction'],
+        columnWidths: [55, 100, 65, 65, 65, 65, 45, 55],
         rows: data.rows.map((r) => [
           r.empCode,
           r.name,
@@ -1318,7 +1351,6 @@ export class ReportsService {
           r.esiEmployee.toFixed(2),
           r.tds.toFixed(2),
           r.loanDeduction.toFixed(2),
-          r.otherDeductions.toFixed(2),
         ]),
       });
 
@@ -1340,16 +1372,34 @@ export class ReportsService {
 
       addLetterhead(doc, { ...letterhead, reportTitle: 'Attendance & Live Track Report' });
 
-      doc.fontSize(11);
-      doc.text(`Period: ${data.from} to ${data.to}`);
-      doc.text(`Attendance log rows: ${data.rows.length}`);
-      doc.text(`Employees live (last 30 min): ${data.liveNow.length}`);
+      doc.fontSize(11).text(`Period: ${data.from} to ${data.to}`);
+      doc.moveDown(0.5);
+      doc.fontSize(13).text('Live Now', { underline: true });
+      doc.moveDown(0.5);
+      drawList(
+        doc,
+        data.liveNow.map((r) => ({
+          left: `${r.name} (${r.empCode})`,
+          right: `${r.lat.toFixed(4)}, ${r.lng.toFixed(4)} — ${r.recordedAt}`,
+        })),
+      );
+
       doc.moveDown();
       doc.fontSize(13).text('Attendance Logs', { underline: true });
       doc.moveDown(0.5);
       drawTable(doc, {
-        headers: ['Emp Code', 'Name', 'Date', 'In', 'In Location', 'Out', 'Out Location', 'Status', 'Hours'],
-        columnWidths: [45, 75, 55, 45, 80, 45, 80, 45, 45],
+        headers: [
+          'Emp Code',
+          'Name',
+          'Date',
+          'Check-In',
+          'Check-In Location',
+          'Check-Out',
+          'Check-Out Location',
+          'Status',
+          'Total Hours',
+        ],
+        columnWidths: [45, 75, 50, 45, 80, 45, 80, 45, 50],
         rows: data.rows.map((r) => [
           r.empCode,
           r.name,
@@ -1361,15 +1411,6 @@ export class ReportsService {
           r.status,
           r.totalHours ?? 'N/A',
         ]),
-      });
-
-      doc.moveDown();
-      doc.fontSize(13).text('Live Now', { underline: true });
-      doc.moveDown(0.5);
-      drawTable(doc, {
-        headers: ['Emp Code', 'Name', 'Lat', 'Lng', 'Recorded At'],
-        columnWidths: [70, 140, 90, 90, 125],
-        rows: data.liveNow.map((r) => [r.empCode, r.name, r.lat, r.lng, r.recordedAt]),
       });
 
       addFooter(doc);
@@ -1390,20 +1431,18 @@ export class ReportsService {
 
       addLetterhead(doc, { ...letterhead, reportTitle: 'Attendance Summary Report' });
 
-      doc.fontSize(11);
-      doc.text(`Period: ${data.from} to ${data.to}`);
-      doc.moveDown();
-      doc.fontSize(13).text('Totals', { underline: true });
-      doc.fontSize(11);
-      doc.text(`Total present: ${data.totalPresent}`);
-      doc.text(`Total absent: ${data.totalAbsent}`);
-      doc.text(`Total leave: ${data.totalLeave}`);
-      doc.text(`Total LOP: ${data.totalLop}`);
-      doc.moveDown();
+      doc.fontSize(11).text(`Period: ${data.from} to ${data.to}`);
+      doc.moveDown(0.5);
+      drawStatCards(doc, [
+        { label: 'Total Present', value: String(data.totalPresent) },
+        { label: 'Total Absent', value: String(data.totalAbsent) },
+        { label: 'Total LOP', value: String(data.totalLop) },
+      ]);
+
       doc.fontSize(13).text('Per-Employee Breakdown', { underline: true });
       doc.moveDown(0.5);
       drawTable(doc, {
-        headers: ['Emp Code', 'Name', 'Present', 'Absent', 'Leave', 'LOP'],
+        headers: ['Emp Code', 'Name', 'Present', 'Absent', 'Leave Days', 'LOP'],
         columnWidths: [80, 195, 80, 80, 40, 40],
         rows: data.rows.map((r) => [r.empCode, r.name, r.presentDays, r.absentDays, r.leaveDays, r.lopDays]),
       });
@@ -1426,20 +1465,21 @@ export class ReportsService {
 
       addLetterhead(doc, { ...letterhead, reportTitle: 'Audit Login & History Report' });
 
-      doc.fontSize(11);
-      doc.text(`Period: ${data.from} to ${data.to}`);
-      doc.text(`Total logins: ${data.totalLogins}`);
-      doc.text(`Failed logins: ${data.failedLogins}`);
-      doc.text(`Unique users: ${data.uniqueUsers}`);
-      doc.moveDown();
+      doc.fontSize(11).text(`Period: ${data.from} to ${data.to}`);
+      doc.moveDown(0.5);
+      drawStatCards(doc, [
+        { label: 'Total Logins', value: String(data.totalLogins) },
+        { label: 'Failed Logins', value: String(data.failedLogins) },
+        { label: 'Unique Users', value: String(data.uniqueUsers) },
+      ]);
+
       doc.fontSize(13).text('Login History', { underline: true });
       doc.moveDown(0.5);
       drawTable(doc, {
-        headers: ['Email', 'Emp Code', 'Name', 'IP', 'Login At', 'Logout At', 'Status'],
-        columnWidths: [120, 55, 90, 75, 65, 65, 45],
+        headers: ['Email', 'Name', 'IP Address', 'Login At', 'Logout At', 'Status'],
+        columnWidths: [130, 100, 80, 75, 75, 55],
         rows: data.rows.map((r) => [
           r.email,
-          r.empCode ?? 'N/A',
           r.name,
           r.ipAddress ?? 'N/A',
           r.loginAt.slice(0, 16).replace('T', ' '),
@@ -1451,16 +1491,13 @@ export class ReportsService {
       doc.moveDown();
       doc.fontSize(13).text('System Changes', { underline: true });
       doc.moveDown(0.5);
-      drawTable(doc, {
-        headers: ['Action', 'Entity Type', 'Actor', 'Occurred At'],
-        columnWidths: [130, 130, 130, 125],
-        rows: data.systemChanges.map((a) => [
-          a.action,
-          a.entityType,
-          a.actorId ?? 'N/A',
-          a.occurredAt.slice(0, 16).replace('T', ' '),
-        ]),
-      });
+      drawList(
+        doc,
+        data.systemChanges.map((a) => ({
+          left: `${a.action} — ${a.entityType}`,
+          right: a.occurredAt.slice(0, 16).replace('T', ' '),
+        })),
+      );
 
       addFooter(doc);
       doc.end();
@@ -1480,16 +1517,26 @@ export class ReportsService {
 
       addLetterhead(doc, { ...letterhead, reportTitle: 'Performance Report' });
 
-      doc.fontSize(11);
-      doc.text(`Period: ${data.from} to ${data.to}`);
-      doc.text(`Average rating: ${data.avgRating.toFixed(2)}`);
-      doc.text(`Total ratings: ${data.totalRatingsCount}`);
-      doc.moveDown();
+      doc.fontSize(11).text(`Period: ${data.from} to ${data.to}`);
+      doc.moveDown(0.5);
+      drawStatCards(doc, [
+        { label: 'Avg Rating', value: data.avgRating.toFixed(2) },
+        { label: 'Total Ratings', value: String(data.totalRatingsCount) },
+      ]);
+
       doc.fontSize(13).text('Per-Employee Ratings', { underline: true });
       doc.moveDown(0.5);
       drawTable(doc, {
-        headers: ['Emp Code', 'Name', 'Cycle', 'Rating', 'Incr. Eligible', 'KPI Achieved/Assigned', 'Achv %'],
-        columnWidths: [55, 90, 90, 45, 65, 100, 70],
+        headers: [
+          'Emp Code',
+          'Name',
+          'Cycle',
+          'Rating',
+          'Eligible for Increment',
+          'KPI Achieved/Assigned',
+          'Achievement Rate',
+        ],
+        columnWidths: [50, 85, 85, 45, 75, 95, 80],
         rows: data.rows.map((r) => [
           r.empCode,
           r.name,
@@ -1519,19 +1566,31 @@ export class ReportsService {
 
       addLetterhead(doc, { ...letterhead, reportTitle: 'Todo & Incentive Report' });
 
-      doc.fontSize(11);
-      doc.text(`Org-wide todos approved: ${data.orgTodosApproved}`);
-      doc.text(`Org-wide incentive total: ${data.orgIncentiveTotalAmount.toFixed(2)}`);
-      doc.moveDown();
+      drawStatCards(doc, [
+        { label: 'Org Todos Approved', value: String(data.orgTodosApproved) },
+        { label: 'Org Incentive Total', value: data.orgIncentiveTotalAmount.toFixed(2) },
+      ]);
+
       doc.fontSize(13).text('Per-Employee Breakdown', { underline: true });
       doc.moveDown(0.5);
       drawTable(doc, {
-        headers: ['Emp Code', 'Name', 'Todos Approved/Total', 'Completion %', 'Incentive Total', 'Incentive Released'],
-        columnWidths: [55, 105, 100, 80, 90, 85],
+        headers: [
+          'Emp Code',
+          'Name',
+          'Todos Total',
+          'Approved',
+          'Rejected',
+          'Completion Rate',
+          'Incentive Total',
+          'Incentive Released',
+        ],
+        columnWidths: [50, 85, 55, 55, 55, 65, 70, 80],
         rows: data.rows.map((r) => [
           r.empCode,
           r.name,
-          `${r.todosApproved}/${r.todosTotal}`,
+          r.todosTotal,
+          r.todosApproved,
+          r.todosRejected,
           `${(r.completionRate * 100).toFixed(0)}%`,
           r.incentiveTotalAmount.toFixed(2),
           r.incentiveReleasedAmount.toFixed(2),

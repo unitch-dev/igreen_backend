@@ -140,6 +140,152 @@ export function addFooter(doc: PDFKit.PDFDocument): void {
   }
 }
 
+const STAT_CARD_HEIGHT = 55;
+const STAT_CARD_GAP = 10;
+
+/**
+ * Draws bordered "stat cards" side-by-side across the printable width,
+ * mirroring the UI's KPI stat-card grid (muted label on top, bold value
+ * below). Advances doc.y past the cards afterward.
+ */
+export function drawStatCards(doc: PDFKit.PDFDocument, cards: { label: string; value: string }[]): void {
+  if (cards.length === 0) return;
+
+  const marginLeft = doc.page.margins.left;
+  const marginRight = doc.page.margins.right;
+  const totalWidth = doc.page.width - marginLeft - marginRight;
+  const cardWidth = (totalWidth - STAT_CARD_GAP * (cards.length - 1)) / cards.length;
+  const y = doc.y;
+
+  let x = marginLeft;
+  for (const card of cards) {
+    doc.rect(x, y, cardWidth, STAT_CARD_HEIGHT).stroke('#cccccc');
+    doc
+      .font('Helvetica')
+      .fontSize(8)
+      .fillColor('#666666')
+      .text(card.label, x + 8, y + 10, { width: cardWidth - 16, ellipsis: true, lineBreak: false });
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(14)
+      .fillColor('#000000')
+      .text(card.value, x + 8, y + 28, { width: cardWidth - 16, ellipsis: true, lineBreak: false });
+    x += cardWidth + STAT_CARD_GAP;
+  }
+
+  doc.font('Helvetica').fontSize(11).fillColor('#000000');
+  doc.y = y + STAT_CARD_HEIGHT + 15;
+  doc.x = marginLeft;
+}
+
+const GRID_ROW_HEIGHT = 30;
+const GRID_COLUMN_GAP = 10;
+
+/**
+ * Lays label:value pairs into N columns left-to-right, wrapping to as many
+ * rows as needed, mirroring the UI's "Component Breakdown" grid. Each cell
+ * shows a muted label above a bold-ish value. Adds a page (no header repeat
+ * needed — this isn't a table) whenever a new row would overflow into the
+ * footer's reserved space.
+ */
+export function drawLabelValueGrid(
+  doc: PDFKit.PDFDocument,
+  items: { label: string; value: string }[],
+  columns: number,
+): void {
+  if (items.length === 0) return;
+
+  const marginLeft = doc.page.margins.left;
+  const marginRight = doc.page.margins.right;
+  const totalWidth = doc.page.width - marginLeft - marginRight;
+  const columnWidth = (totalWidth - GRID_COLUMN_GAP * (columns - 1)) / columns;
+
+  const ensureSpace = (): void => {
+    if (doc.y + GRID_ROW_HEIGHT > doc.page.height - FOOTER_RESERVED_HEIGHT) {
+      doc.addPage();
+      doc.y = doc.page.margins.top;
+    }
+  };
+
+  for (let i = 0; i < items.length; i += columns) {
+    ensureSpace();
+    const rowItems = items.slice(i, i + columns);
+    const y = doc.y;
+    let x = marginLeft;
+    for (const item of rowItems) {
+      doc
+        .font('Helvetica')
+        .fontSize(8)
+        .fillColor('#666666')
+        .text(item.label, x, y, { width: columnWidth, ellipsis: true, lineBreak: false });
+      doc
+        .font('Helvetica-Bold')
+        .fontSize(10)
+        .fillColor('#000000')
+        .text(item.value, x, y + 13, { width: columnWidth, ellipsis: true, lineBreak: false });
+      x += columnWidth + GRID_COLUMN_GAP;
+    }
+    doc.y = y + GRID_ROW_HEIGHT;
+    doc.x = marginLeft;
+  }
+
+  doc.font('Helvetica').fontSize(11).fillColor('#000000');
+}
+
+const LIST_ROW_HEIGHT = 16;
+
+/**
+ * Draws one line per row: left text left-aligned, right text right-aligned
+ * on the same line, mirroring the UI's "Live Now" / "System Changes" lists.
+ * Adds a page whenever the next row would overflow into the footer's
+ * reserved space (no header to repeat).
+ */
+export function drawList(doc: PDFKit.PDFDocument, rows: { left: string; right: string }[]): void {
+  const marginLeft = doc.page.margins.left;
+  const marginRight = doc.page.margins.right;
+  const totalWidth = doc.page.width - marginLeft - marginRight;
+
+  if (rows.length === 0) {
+    doc
+      .font('Helvetica-Oblique')
+      .fontSize(9)
+      .fillColor('#666666')
+      .text('No records found.', marginLeft, doc.y, { width: totalWidth });
+    doc.font('Helvetica').fillColor('#000000');
+    doc.x = marginLeft;
+    return;
+  }
+
+  const halfWidth = (totalWidth - GRID_COLUMN_GAP) / 2;
+
+  for (const row of rows) {
+    if (doc.y + LIST_ROW_HEIGHT > doc.page.height - FOOTER_RESERVED_HEIGHT) {
+      doc.addPage();
+      doc.y = doc.page.margins.top;
+    }
+    const y = doc.y;
+    doc
+      .font('Helvetica')
+      .fontSize(9)
+      .fillColor('#000000')
+      .text(row.left, marginLeft, y, { width: halfWidth, ellipsis: true, lineBreak: false });
+    doc
+      .font('Helvetica')
+      .fontSize(9)
+      .fillColor('#555555')
+      .text(row.right, marginLeft + halfWidth + GRID_COLUMN_GAP, y, {
+        width: halfWidth,
+        align: 'right',
+        ellipsis: true,
+        lineBreak: false,
+      });
+    doc.y = y + LIST_ROW_HEIGHT;
+    doc.x = marginLeft;
+  }
+
+  doc.fillColor('#000000');
+}
+
 interface DrawTableOptions {
   headers: string[];
   rows: (string | number)[][];
