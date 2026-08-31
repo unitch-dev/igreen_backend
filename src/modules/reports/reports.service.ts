@@ -1,10 +1,17 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { LeaveStatus, LoanStatus } from '@prisma/client';
 import * as ExcelJS from 'exceljs';
 import * as PDFDocument from 'pdfkit';
 import { PrismaService } from '@prisma/prisma.service';
 import { QueryReportDto } from './dto/query-report.dto';
 import { ReportExportFormat } from './dto/export-report.dto';
+import { addFooter, addLetterhead, drawTable, resolveLogoPath } from './pdf/pdf-layout.util';
+
+interface LetterheadInfo {
+  orgName: string;
+  logoPath: string | null;
+}
 
 export const REPORT_TYPES = [
   'headcount',
@@ -31,7 +38,10 @@ const PDF_CONTENT_TYPE = 'application/pdf';
 
 @Injectable()
 export class ReportsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly configService: ConfigService,
+  ) {}
 
   // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -951,22 +961,37 @@ export class ReportsService {
       }
 
       const fullQuery = { ...query, page: 1, limit: 100000 } as QueryReportDto;
+      const letterhead = await this.resolveLetterheadInfo(organizationId);
       let buffer: Buffer;
       if (reportType === 'payroll') {
-        buffer = await this.buildPayrollPdf(await this.payroll(organizationId, fullQuery));
+        buffer = await this.buildPayrollPdf(
+          await this.payroll(organizationId, fullQuery),
+          letterhead,
+        );
       } else if (reportType === 'attendance-track') {
         buffer = await this.buildAttendanceTrackPdf(
           await this.attendanceTrack(organizationId, fullQuery),
+          letterhead,
         );
       } else if (reportType === 'performance') {
-        buffer = await this.buildPerformancePdf(await this.performance(organizationId, fullQuery));
+        buffer = await this.buildPerformancePdf(
+          await this.performance(organizationId, fullQuery),
+          letterhead,
+        );
       } else if (reportType === 'attendance') {
-        buffer = await this.buildAttendancePdf(await this.attendance(organizationId, fullQuery));
+        buffer = await this.buildAttendancePdf(
+          await this.attendance(organizationId, fullQuery),
+          letterhead,
+        );
       } else if (reportType === 'audit') {
-        buffer = await this.buildAuditPdf(await this.auditHistory(organizationId, fullQuery));
+        buffer = await this.buildAuditPdf(
+          await this.auditHistory(organizationId, fullQuery),
+          letterhead,
+        );
       } else {
         buffer = await this.buildTodoIncentivePdf(
           await this.todoIncentive(organizationId, fullQuery),
+          letterhead,
         );
       }
 
@@ -983,6 +1008,18 @@ export class ReportsService {
       filename: `${reportType}-report-${timestamp}.xlsx`,
       contentType: EXCEL_CONTENT_TYPE,
     };
+  }
+
+  /** Fetches org name + resolves the logo's local disk path once per PDF export. */
+  private async resolveLetterheadInfo(organizationId: string): Promise<LetterheadInfo> {
+    const org = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { name: true, logoUrl: true },
+    });
+    const appUrl = this.configService.get<string>('appUrl');
+    const localDir = this.configService.get<string>('storage.localDir');
+    const logoPath = resolveLogoPath(org?.logoUrl, appUrl, localDir);
+    return { orgName: org?.name ?? '', logoPath };
   }
 
   private async buildExcel(
@@ -1237,16 +1274,19 @@ export class ReportsService {
     return Buffer.from(arrayBuffer);
   }
 
-  private buildPayrollPdf(data: Awaited<ReturnType<ReportsService['payroll']>>): Promise<Buffer> {
+  private buildPayrollPdf(
+    data: Awaited<ReturnType<ReportsService['payroll']>>,
+    letterhead: LetterheadInfo,
+  ): Promise<Buffer> {
     return new Promise((resolve, reject) => {
-      const doc = new PDFDocument({ margin: 40 });
+      const doc = new PDFDocument({ margin: 40, bufferPages: true });
       const chunks: Buffer[] = [];
       doc.on('data', (chunk) => chunks.push(chunk));
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', reject);
 
-      doc.fontSize(18).text('Payroll Summary Report', { align: 'center' });
-      doc.moveDown();
+      addLetterhead(doc, { ...letterhead, reportTitle: 'Payroll Summary Report' });
+
       doc.fontSize(11);
       doc.text(`Period: ${data.month}/${data.year}`);
       doc.text(`Run status: ${data.status ?? 'N/A'}`);
@@ -1265,68 +1305,91 @@ export class ReportsService {
 
       doc.moveDown();
       doc.fontSize(13).text('Per-Employee Breakdown', { underline: true });
-      doc.fontSize(9);
-      for (const r of data.rows) {
-        doc.text(
-          `${r.empCode} — ${r.name} | Gross: ${r.grossSalary.toFixed(2)} | Net: ${r.netSalary.toFixed(2)} | ` +
-            `PF(E): ${r.pfEmployee.toFixed(2)} | ESI(E): ${r.esiEmployee.toFixed(2)} | TDS: ${r.tds.toFixed(2)} | ` +
-            `Loan Ded: ${r.loanDeduction.toFixed(2)} | Other Ded: ${r.otherDeductions.toFixed(2)}`,
-        );
-      }
+      doc.moveDown(0.5);
+      drawTable(doc, {
+        headers: ['Emp Code', 'Name', 'Gross', 'Net', 'PF(E)', 'ESI(E)', 'TDS', 'Loan Ded', 'Other Ded'],
+        columnWidths: [50, 90, 55, 55, 50, 50, 45, 60, 60],
+        rows: data.rows.map((r) => [
+          r.empCode,
+          r.name,
+          r.grossSalary.toFixed(2),
+          r.netSalary.toFixed(2),
+          r.pfEmployee.toFixed(2),
+          r.esiEmployee.toFixed(2),
+          r.tds.toFixed(2),
+          r.loanDeduction.toFixed(2),
+          r.otherDeductions.toFixed(2),
+        ]),
+      });
 
+      addFooter(doc);
       doc.end();
     });
   }
 
   private buildAttendanceTrackPdf(
     data: Awaited<ReturnType<ReportsService['attendanceTrack']>>,
+    letterhead: LetterheadInfo,
   ): Promise<Buffer> {
     return new Promise((resolve, reject) => {
-      const doc = new PDFDocument({ margin: 40 });
+      const doc = new PDFDocument({ margin: 40, bufferPages: true });
       const chunks: Buffer[] = [];
       doc.on('data', (chunk) => chunks.push(chunk));
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', reject);
 
-      doc.fontSize(18).text('Attendance & Live Track Report', { align: 'center' });
-      doc.moveDown();
+      addLetterhead(doc, { ...letterhead, reportTitle: 'Attendance & Live Track Report' });
+
       doc.fontSize(11);
       doc.text(`Period: ${data.from} to ${data.to}`);
       doc.text(`Attendance log rows: ${data.rows.length}`);
       doc.text(`Employees live (last 30 min): ${data.liveNow.length}`);
       doc.moveDown();
       doc.fontSize(13).text('Attendance Logs', { underline: true });
-      doc.fontSize(9);
-      for (const r of data.rows) {
-        doc.text(
-          `${r.empCode} — ${r.name} | ${r.date.slice(0, 10)} | In: ${r.checkInAt ?? 'N/A'} @ ` +
-            `${r.checkInLocationName ?? 'N/A'} | Out: ${r.checkOutAt ?? 'N/A'} @ ` +
-            `${r.checkOutLocationName ?? 'N/A'} | Status: ${r.status} | Hours: ${r.totalHours ?? 'N/A'}`,
-        );
-      }
+      doc.moveDown(0.5);
+      drawTable(doc, {
+        headers: ['Emp Code', 'Name', 'Date', 'In', 'In Location', 'Out', 'Out Location', 'Status', 'Hours'],
+        columnWidths: [45, 75, 55, 45, 80, 45, 80, 45, 45],
+        rows: data.rows.map((r) => [
+          r.empCode,
+          r.name,
+          r.date.slice(0, 10),
+          r.checkInAt ? r.checkInAt.slice(11, 16) : 'N/A',
+          r.checkInLocationName ?? 'N/A',
+          r.checkOutAt ? r.checkOutAt.slice(11, 16) : 'N/A',
+          r.checkOutLocationName ?? 'N/A',
+          r.status,
+          r.totalHours ?? 'N/A',
+        ]),
+      });
+
       doc.moveDown();
       doc.fontSize(13).text('Live Now', { underline: true });
-      doc.fontSize(9);
-      for (const r of data.liveNow) {
-        doc.text(`${r.empCode} — ${r.name} | ${r.lat}, ${r.lng} | ${r.recordedAt}`);
-      }
+      doc.moveDown(0.5);
+      drawTable(doc, {
+        headers: ['Emp Code', 'Name', 'Lat', 'Lng', 'Recorded At'],
+        columnWidths: [70, 140, 90, 90, 125],
+        rows: data.liveNow.map((r) => [r.empCode, r.name, r.lat, r.lng, r.recordedAt]),
+      });
 
+      addFooter(doc);
       doc.end();
     });
   }
 
   private buildAttendancePdf(
     data: Awaited<ReturnType<ReportsService['attendance']>>,
+    letterhead: LetterheadInfo,
   ): Promise<Buffer> {
     return new Promise((resolve, reject) => {
-      const doc = new PDFDocument({ margin: 40 });
+      const doc = new PDFDocument({ margin: 40, bufferPages: true });
       const chunks: Buffer[] = [];
       doc.on('data', (chunk) => chunks.push(chunk));
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', reject);
 
-      doc.fontSize(18).text('Attendance Summary Report', { align: 'center' });
-      doc.moveDown();
+      addLetterhead(doc, { ...letterhead, reportTitle: 'Attendance Summary Report' });
+
       doc.fontSize(11);
       doc.text(`Period: ${data.from} to ${data.to}`);
       doc.moveDown();
@@ -1338,30 +1401,31 @@ export class ReportsService {
       doc.text(`Total LOP: ${data.totalLop}`);
       doc.moveDown();
       doc.fontSize(13).text('Per-Employee Breakdown', { underline: true });
-      doc.fontSize(9);
-      for (const r of data.rows) {
-        doc.text(
-          `${r.empCode} — ${r.name} | Present: ${r.presentDays} | Absent: ${r.absentDays} | ` +
-            `Leave: ${r.leaveDays} | LOP: ${r.lopDays}`,
-        );
-      }
+      doc.moveDown(0.5);
+      drawTable(doc, {
+        headers: ['Emp Code', 'Name', 'Present', 'Absent', 'Leave', 'LOP'],
+        columnWidths: [80, 195, 80, 80, 40, 40],
+        rows: data.rows.map((r) => [r.empCode, r.name, r.presentDays, r.absentDays, r.leaveDays, r.lopDays]),
+      });
 
+      addFooter(doc);
       doc.end();
     });
   }
 
   private buildAuditPdf(
     data: Awaited<ReturnType<ReportsService['auditHistory']>>,
+    letterhead: LetterheadInfo,
   ): Promise<Buffer> {
     return new Promise((resolve, reject) => {
-      const doc = new PDFDocument({ margin: 40 });
+      const doc = new PDFDocument({ margin: 40, bufferPages: true });
       const chunks: Buffer[] = [];
       doc.on('data', (chunk) => chunks.push(chunk));
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', reject);
 
-      doc.fontSize(18).text('Audit Login & History Report', { align: 'center' });
-      doc.moveDown();
+      addLetterhead(doc, { ...letterhead, reportTitle: 'Audit Login & History Report' });
+
       doc.fontSize(11);
       doc.text(`Period: ${data.from} to ${data.to}`);
       doc.text(`Total logins: ${data.totalLogins}`);
@@ -1369,81 +1433,112 @@ export class ReportsService {
       doc.text(`Unique users: ${data.uniqueUsers}`);
       doc.moveDown();
       doc.fontSize(13).text('Login History', { underline: true });
-      doc.fontSize(9);
-      for (const r of data.rows) {
-        doc.text(
-          `${r.email} | ${r.empCode ?? 'N/A'} — ${r.name} | IP: ${r.ipAddress ?? 'N/A'} | ` +
-            `In: ${r.loginAt} | Out: ${r.logoutAt ?? 'N/A'} | Status: ${r.status}`,
-        );
-      }
+      doc.moveDown(0.5);
+      drawTable(doc, {
+        headers: ['Email', 'Emp Code', 'Name', 'IP', 'Login At', 'Logout At', 'Status'],
+        columnWidths: [120, 55, 90, 75, 65, 65, 45],
+        rows: data.rows.map((r) => [
+          r.email,
+          r.empCode ?? 'N/A',
+          r.name,
+          r.ipAddress ?? 'N/A',
+          r.loginAt.slice(0, 16).replace('T', ' '),
+          r.logoutAt ? r.logoutAt.slice(0, 16).replace('T', ' ') : 'N/A',
+          r.status,
+        ]),
+      });
+
       doc.moveDown();
       doc.fontSize(13).text('System Changes', { underline: true });
-      doc.fontSize(9);
-      for (const a of data.systemChanges) {
-        doc.text(`${a.action} | ${a.entityType} | Actor: ${a.actorId ?? 'N/A'} | ${a.occurredAt}`);
-      }
+      doc.moveDown(0.5);
+      drawTable(doc, {
+        headers: ['Action', 'Entity Type', 'Actor', 'Occurred At'],
+        columnWidths: [130, 130, 130, 125],
+        rows: data.systemChanges.map((a) => [
+          a.action,
+          a.entityType,
+          a.actorId ?? 'N/A',
+          a.occurredAt.slice(0, 16).replace('T', ' '),
+        ]),
+      });
 
+      addFooter(doc);
       doc.end();
     });
   }
 
   private buildPerformancePdf(
     data: Awaited<ReturnType<ReportsService['performance']>>,
+    letterhead: LetterheadInfo,
   ): Promise<Buffer> {
     return new Promise((resolve, reject) => {
-      const doc = new PDFDocument({ margin: 40 });
+      const doc = new PDFDocument({ margin: 40, bufferPages: true });
       const chunks: Buffer[] = [];
       doc.on('data', (chunk) => chunks.push(chunk));
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', reject);
 
-      doc.fontSize(18).text('Performance Report', { align: 'center' });
-      doc.moveDown();
+      addLetterhead(doc, { ...letterhead, reportTitle: 'Performance Report' });
+
       doc.fontSize(11);
       doc.text(`Period: ${data.from} to ${data.to}`);
       doc.text(`Average rating: ${data.avgRating.toFixed(2)}`);
       doc.text(`Total ratings: ${data.totalRatingsCount}`);
       doc.moveDown();
       doc.fontSize(13).text('Per-Employee Ratings', { underline: true });
-      doc.fontSize(9);
-      for (const r of data.rows) {
-        doc.text(
-          `${r.empCode} — ${r.name} | Cycle: ${r.cycleName} | Rating: ${r.rating} | ` +
-            `Increment eligible: ${r.isEligibleForIncrement} | KPIs: ${r.kpiAchievedCount}/${r.kpiAssignedCount} ` +
-            `(${(r.kpiAchievementRate * 100).toFixed(0)}%)`,
-        );
-      }
+      doc.moveDown(0.5);
+      drawTable(doc, {
+        headers: ['Emp Code', 'Name', 'Cycle', 'Rating', 'Incr. Eligible', 'KPI Achieved/Assigned', 'Achv %'],
+        columnWidths: [55, 90, 90, 45, 65, 100, 70],
+        rows: data.rows.map((r) => [
+          r.empCode,
+          r.name,
+          r.cycleName,
+          r.rating,
+          r.isEligibleForIncrement ? 'Yes' : 'No',
+          `${r.kpiAchievedCount}/${r.kpiAssignedCount}`,
+          `${(r.kpiAchievementRate * 100).toFixed(0)}%`,
+        ]),
+      });
 
+      addFooter(doc);
       doc.end();
     });
   }
 
   private buildTodoIncentivePdf(
     data: Awaited<ReturnType<ReportsService['todoIncentive']>>,
+    letterhead: LetterheadInfo,
   ): Promise<Buffer> {
     return new Promise((resolve, reject) => {
-      const doc = new PDFDocument({ margin: 40 });
+      const doc = new PDFDocument({ margin: 40, bufferPages: true });
       const chunks: Buffer[] = [];
       doc.on('data', (chunk) => chunks.push(chunk));
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', reject);
 
-      doc.fontSize(18).text('Todo & Incentive Report', { align: 'center' });
-      doc.moveDown();
+      addLetterhead(doc, { ...letterhead, reportTitle: 'Todo & Incentive Report' });
+
       doc.fontSize(11);
       doc.text(`Org-wide todos approved: ${data.orgTodosApproved}`);
       doc.text(`Org-wide incentive total: ${data.orgIncentiveTotalAmount.toFixed(2)}`);
       doc.moveDown();
       doc.fontSize(13).text('Per-Employee Breakdown', { underline: true });
-      doc.fontSize(9);
-      for (const r of data.rows) {
-        doc.text(
-          `${r.empCode} — ${r.name} | Todos: ${r.todosApproved}/${r.todosTotal} ` +
-            `(${(r.completionRate * 100).toFixed(0)}%) | Incentive: ${r.incentiveTotalAmount.toFixed(2)} ` +
-            `(Released: ${r.incentiveReleasedAmount.toFixed(2)})`,
-        );
-      }
+      doc.moveDown(0.5);
+      drawTable(doc, {
+        headers: ['Emp Code', 'Name', 'Todos Approved/Total', 'Completion %', 'Incentive Total', 'Incentive Released'],
+        columnWidths: [55, 105, 100, 80, 90, 85],
+        rows: data.rows.map((r) => [
+          r.empCode,
+          r.name,
+          `${r.todosApproved}/${r.todosTotal}`,
+          `${(r.completionRate * 100).toFixed(0)}%`,
+          r.incentiveTotalAmount.toFixed(2),
+          r.incentiveReleasedAmount.toFixed(2),
+        ]),
+      });
 
+      addFooter(doc);
       doc.end();
     });
   }
