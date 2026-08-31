@@ -1,14 +1,16 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsInt, IsNumber, Min } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsInt, IsNumber, IsOptional, Min } from 'class-validator';
 
 export class AddOdLocationDto {
-  @ApiProperty({ example: 19.076 })
+  @ApiPropertyOptional({ example: 19.076, description: 'Defaults to 0 when GPS is unavailable' })
+  @IsOptional()
   @IsNumber()
-  lat: number;
+  lat?: number;
 
-  @ApiProperty({ example: 72.8777 })
+  @ApiPropertyOptional({ example: 72.8777, description: 'Defaults to 0 when GPS is unavailable' })
+  @IsOptional()
   @IsNumber()
-  lng: number;
+  lng?: number;
 
   @ApiProperty({ example: 45, description: 'Minutes spent on-duty at this location' })
   @IsInt()

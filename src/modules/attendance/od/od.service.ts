@@ -93,10 +93,15 @@ export class OdService {
     await this.assertEmployeeInOrg(organizationId, employeeId);
 
     const date = startOfDay(new Date());
+
+    // GPS may be unavailable (denied permission, indoor signal loss, desktop
+    // entry) — default to 0,0 rather than rejecting the OD entry outright.
+    const lat = dto.lat ?? 0;
+    const lng = dto.lng ?? 0;
     const locationName = await this.workLocationsService.resolveLocationName(
       organizationId,
-      dto.lat,
-      dto.lng,
+      lat,
+      lng,
     );
 
     const existing = await this.prisma.odRecord.findUnique({
@@ -121,8 +126,8 @@ export class OdService {
     await this.prisma.odLocationEntry.create({
       data: {
         odRecordId,
-        lat: dto.lat,
-        lng: dto.lng,
+        lat,
+        lng,
         locationName,
         minutes: dto.minutes,
       },
@@ -153,17 +158,21 @@ export class OdService {
       }
     }
 
+    // GPS may be unavailable (denied permission, indoor signal loss, desktop
+    // entry) — default to 0,0 rather than rejecting the OD entry outright.
+    const lat = dto.lat ?? 0;
+    const lng = dto.lng ?? 0;
     const locationName = await this.workLocationsService.resolveLocationName(
       organizationId,
-      dto.lat,
-      dto.lng,
+      lat,
+      lng,
     );
 
     await this.prisma.odLocationEntry.create({
       data: {
         odRecordId: record.id,
-        lat: dto.lat,
-        lng: dto.lng,
+        lat,
+        lng,
         locationName,
         minutes: dto.minutes,
       },

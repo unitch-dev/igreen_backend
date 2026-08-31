@@ -37270,11 +37270,13 @@
         "properties": {
           "lat": {
             "type": "number",
-            "example": 19.076
+            "example": 19.076,
+            "description": "Defaults to 0 when GPS is unavailable"
           },
           "lng": {
             "type": "number",
-            "example": 72.8777
+            "example": 72.8777,
+            "description": "Defaults to 0 when GPS is unavailable"
           },
           "minutes": {
             "type": "number",
@@ -37289,8 +37291,6 @@
           }
         },
         "required": [
-          "lat",
-          "lng",
           "minutes"
         ]
       },
@@ -37299,11 +37299,13 @@
         "properties": {
           "lat": {
             "type": "number",
-            "example": 19.076
+            "example": 19.076,
+            "description": "Defaults to 0 when GPS is unavailable"
           },
           "lng": {
             "type": "number",
-            "example": 72.8777
+            "example": 72.8777,
+            "description": "Defaults to 0 when GPS is unavailable"
           },
           "minutes": {
             "type": "number",
@@ -37313,8 +37315,6 @@
           }
         },
         "required": [
-          "lat",
-          "lng",
           "minutes"
         ]
       },

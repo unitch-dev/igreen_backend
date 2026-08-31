@@ -10,7 +10,11 @@ import * as path from 'path';
 
 const PAGE_BOTTOM_MARGIN = 40;
 const FOOTER_RESERVED_HEIGHT = 70;
-const HEADER_BODY_START_Y = 100;
+// Separator rule sits below both the logo (bottom=75) and the title
+// (fontSize 18 => ~21.4pt tall, drawn at y=55 => bottom~76.4), with body
+// content starting a further 10pt below the rule. See addLetterhead().
+const HEADER_SEPARATOR_Y = 88;
+const HEADER_BODY_START_Y = 98;
 
 /**
  * Resolves an Organization.logoUrl (a full URL of shape
@@ -58,7 +62,7 @@ export function addLetterhead(
 
   if (logoPath) {
     try {
-      doc.image(logoPath, marginLeft, 30, { width: 50, height: 50, fit: [50, 50] });
+      doc.image(logoPath, marginLeft, 25, { width: 50, height: 50, fit: [50, 50] });
       textStartX = marginLeft + 62;
     } catch {
       // Corrupt/unreadable image file — fall back to no-logo layout silently.
@@ -70,13 +74,17 @@ export function addLetterhead(
     doc
       .fontSize(14)
       .font('Helvetica-Bold')
-      .text(orgName, textStartX, 40, { width: pageWidth - textStartX - marginRight });
+      .text(orgName, textStartX, 30, { width: pageWidth - textStartX - marginRight });
   }
 
+  // Title is drawn independently of the org-name/logo column so it stays
+  // centered across the full page width; its own y is chosen so its bottom
+  // edge (y + heightOfString, ~21.4pt for fontSize 18) clears both the logo
+  // (bottom=75) and the org name line before the separator rule is drawn.
   doc
     .font('Helvetica-Bold')
     .fontSize(18)
-    .text(reportTitle, marginLeft, 88, {
+    .text(reportTitle, marginLeft, 55, {
       width: pageWidth - marginLeft - marginRight,
       align: 'center',
     });
@@ -84,8 +92,8 @@ export function addLetterhead(
   doc.font('Helvetica');
 
   doc
-    .moveTo(marginLeft, HEADER_BODY_START_Y - 8)
-    .lineTo(pageWidth - marginRight, HEADER_BODY_START_Y - 8)
+    .moveTo(marginLeft, HEADER_SEPARATOR_Y)
+    .lineTo(pageWidth - marginRight, HEADER_SEPARATOR_Y)
     .lineWidth(1)
     .strokeColor('#999999')
     .stroke();
@@ -122,6 +130,17 @@ export function addFooter(doc: PDFKit.PDFDocument): void {
       .stroke();
     doc.strokeColor('#000000');
 
+    // footerY (page.height - 35) sits BELOW the printable area's bottom
+    // margin (page.height - margins.bottom, i.e. page.height - 40) by
+    // design — footers live in the reserved margin strip. pdfkit's
+    // auto-pagination triggers whenever a text write's y + height would
+    // cross that margin boundary, so writing here with the real bottom
+    // margin still in effect silently appends a fresh (blank) page on
+    // every single footer line. Neutralize it for the duration of these
+    // writes only, then restore, so nothing after this loop is affected.
+    const realBottomMargin = doc.page.margins.bottom;
+    doc.page.margins.bottom = 0;
+
     doc
       .fontSize(8)
       .font('Helvetica')
@@ -129,13 +148,16 @@ export function addFooter(doc: PDFKit.PDFDocument): void {
       .text(`Generated on ${generatedOn}`, marginLeft, footerY, {
         width: (pageWidth - marginLeft - marginRight) / 2,
         align: 'left',
+        lineBreak: false,
       });
 
     doc.text(`Page ${i - range.start + 1} of ${range.count}`, marginLeft, footerY, {
       width: pageWidth - marginLeft - marginRight,
       align: 'right',
+      lineBreak: false,
     });
 
+    doc.page.margins.bottom = realBottomMargin;
     doc.fillColor('#000000');
   }
 }

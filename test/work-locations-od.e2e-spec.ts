@@ -577,6 +577,62 @@ describe('Work Locations + OD + Casual Leave limit (e2e)', () => {
     });
   });
 
+  // ─── OD create/addLocation with GPS coordinates omitted (0,0 fallback) ─────
+  // See docs/known-issues.md 2026-08-31 entry: OD marking must not hard-fail
+  // when the client has no GPS fix (denied permission, indoor signal loss).
+  describe('OD create + addLocation succeed with lat/lng omitted (defaults to 0,0)', () => {
+    let org: OrgFixture;
+
+    beforeAll(async () => {
+      org = await createOrgFixture('od-no-gps');
+    });
+
+    it('POST /attendance/od with lat/lng OMITTED succeeds and stores the entry as lat:0, lng:0', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/attendance/od')
+        .set(authed(org.employeeToken, org.organizationId))
+        .send({ minutes: 45, reason: 'Field visit, GPS denied' })
+        .expect(201);
+
+      expect(res.body.data.totalMinutes).toBe(45);
+      expect(res.body.data.entries).toHaveLength(1);
+      expect(res.body.data.entries[0].lat).toBe(0);
+      expect(res.body.data.entries[0].lng).toBe(0);
+    });
+
+    it('POST /attendance/od/:id/locations with lat/lng OMITTED succeeds and stores the entry as lat:0, lng:0', async () => {
+      const first = await request(app.getHttpServer())
+        .get('/api/v1/attendance/od')
+        .set(authed(org.employeeToken, org.organizationId))
+        .expect(200);
+      const odRecordId = first.body.data.data[0].id;
+
+      const res = await request(app.getHttpServer())
+        .post(`/api/v1/attendance/od/${odRecordId}/locations`)
+        .set(authed(org.employeeToken, org.organizationId))
+        .send({ minutes: 15 })
+        .expect(200);
+
+      expect(res.body.data.totalMinutes).toBe(60); // 45 + 15
+      const newEntry = res.body.data.entries[res.body.data.entries.length - 1];
+      expect(newEntry.lat).toBe(0);
+      expect(newEntry.lng).toBe(0);
+    });
+
+    it('POST /attendance/od WITH real coordinates still stores the given lat/lng unchanged (no regression)', async () => {
+      const otherOrg = await createOrgFixture('od-with-gps');
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/attendance/od')
+        .set(authed(otherOrg.employeeToken, otherOrg.organizationId))
+        .send({ lat: 19.076, lng: 72.8777, minutes: 30 })
+        .expect(201);
+
+      expect(res.body.data.entries).toHaveLength(1);
+      expect(res.body.data.entries[0].lat).toBe(19.076);
+      expect(res.body.data.entries[0].lng).toBe(72.8777);
+    });
+  });
+
   // ─── Casual Leave day-limit fix ────────────────────────────────────────────
 
   describe('Casual Leave maxConsecutiveDays enforcement', () => {
