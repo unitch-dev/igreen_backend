@@ -10,11 +10,20 @@ import * as path from 'path';
 
 const PAGE_BOTTOM_MARGIN = 40;
 const FOOTER_RESERVED_HEIGHT = 70;
-// Separator rule sits below both the logo (bottom=75) and the title
-// (fontSize 18 => ~21.4pt tall, drawn at y=55 => bottom~76.4), with body
-// content starting a further 10pt below the rule. See addLetterhead().
-const HEADER_SEPARATOR_Y = 88;
-const HEADER_BODY_START_Y = 98;
+// Separator rule sits below the centered logo/org-name/title stack (logo
+// bottom=95 when present, title bottom~123.4 otherwise), with body content
+// starting a further 10pt below the rule. See addLetterhead().
+const HEADER_SEPARATOR_Y = 133;
+const HEADER_BODY_START_Y = 143;
+
+/** Formats a Date as `YYYY-MM-DD HH:mm` in the server's local time (24-hour). */
+function formatGeneratedOn(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return (
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ` +
+    `${pad(date.getHours())}:${pad(date.getMinutes())}`
+  );
+}
 
 /**
  * Resolves an Organization.logoUrl (a full URL of shape
@@ -44,10 +53,11 @@ export function resolveLogoPath(
 }
 
 /**
- * Draws the letterhead: logo top-left (if present), org name beside/at the
- * logo position, the report title centered below, and a horizontal rule
- * separating header from body. Leaves doc.y at a fixed value so body
- * content starts at the same position whether or not a logo was drawn.
+ * Draws the letterhead centered as a single block on the page: logo (if
+ * present) centered horizontally, the org name centered below it, the
+ * report title centered below that, and a horizontal rule separating the
+ * header from the body. Vertical positions are fixed regardless of whether
+ * a logo is present, so the layout stays consistent across report types.
  */
 export function addLetterhead(
   doc: PDFKit.PDFDocument,
@@ -57,16 +67,18 @@ export function addLetterhead(
   const pageWidth = doc.page.width;
   const marginLeft = doc.page.margins.left;
   const marginRight = doc.page.margins.right;
-
-  let textStartX = marginLeft;
+  const contentWidth = pageWidth - marginLeft - marginRight;
 
   if (logoPath) {
     try {
-      doc.image(logoPath, marginLeft, 25, { width: 50, height: 50, fit: [50, 50] });
-      textStartX = marginLeft + 62;
+      const logoSize = 50;
+      doc.image(logoPath, (pageWidth - logoSize) / 2, 25, {
+        width: logoSize,
+        height: logoSize,
+        fit: [logoSize, logoSize],
+      });
     } catch {
       // Corrupt/unreadable image file — fall back to no-logo layout silently.
-      textStartX = marginLeft;
     }
   }
 
@@ -74,20 +86,13 @@ export function addLetterhead(
     doc
       .fontSize(14)
       .font('Helvetica-Bold')
-      .text(orgName, textStartX, 30, { width: pageWidth - textStartX - marginRight });
+      .text(orgName, marginLeft, 80, { width: contentWidth, align: 'center' });
   }
 
-  // Title is drawn independently of the org-name/logo column so it stays
-  // centered across the full page width; its own y is chosen so its bottom
-  // edge (y + heightOfString, ~21.4pt for fontSize 18) clears both the logo
-  // (bottom=75) and the org name line before the separator rule is drawn.
   doc
     .font('Helvetica-Bold')
     .fontSize(18)
-    .text(reportTitle, marginLeft, 55, {
-      width: pageWidth - marginLeft - marginRight,
-      align: 'center',
-    });
+    .text(reportTitle, marginLeft, 100, { width: contentWidth, align: 'center' });
 
   doc.font('Helvetica');
 
@@ -112,10 +117,7 @@ export function addFooter(doc: PDFKit.PDFDocument): void {
   const range = doc.bufferedPageRange();
   const marginLeft = doc.page.margins.left;
   const marginRight = doc.page.margins.right;
-  const generatedOn = new Date().toLocaleString('en-IN', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  });
+  const generatedOn = formatGeneratedOn(new Date());
 
   for (let i = range.start; i < range.start + range.count; i++) {
     doc.switchToPage(i);
