@@ -58,6 +58,33 @@ const MODELS_WITH_UPDATED_BY = new Set([
   'Asset',
 ]);
 
+// Models whose writes are audited into AuditLog: the union of the two sets above.
+// This IS the whitelist — do not maintain a separate list. `AuditLog` itself must
+// NEVER be added to either set above, or this middleware would recursively audit
+// its own audit-log writes.
+const AUDITED_MODELS = new Set([...MODELS_WITH_CREATED_BY, ...MODELS_WITH_UPDATED_BY]);
+
+// Maps a Prisma middleware action to the AuditLog.action string we persist.
+// NOTE: `upsert` is tagged 'UPSERT' rather than being resolved to CREATE/UPDATE —
+// cheaply distinguishing which branch actually ran would require an extra read
+// before `next(params)`, which isn't worth it for a best-effort audit trail.
+function mapAuditAction(action: string): string | null {
+  switch (action) {
+    case 'create':
+      return 'CREATE';
+    case 'update':
+    case 'updateMany':
+      return 'UPDATE';
+    case 'delete':
+    case 'deleteMany':
+      return 'DELETE';
+    case 'upsert':
+      return 'UPSERT';
+    default:
+      return null;
+  }
+}
+
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(PrismaService.name);
@@ -97,7 +124,54 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
         }
       }
 
-      return next(params);
+      const result = await next(params);
+
+      // Best-effort AuditLog write. Never let this throw back into the caller —
+      // the original business write (`result`) must always succeed/return unchanged
+      // regardless of what happens here.
+      if (userId && params.model && AUDITED_MODELS.has(params.model)) {
+        const auditAction = mapAuditAction(params.action);
+
+        // `updateMany`/`deleteMany` have no single affected row id — skip auditing
+        // them entirely rather than logging an entry with a null entityId for an
+        // unknown number of affected rows.
+        const isBulkAction = params.action === 'updateMany' || params.action === 'deleteMany';
+
+        if (auditAction && !isBulkAction) {
+          const entityId = (result as { id?: string } | null)?.id ?? null;
+          const organizationId =
+            (result as { organizationId?: string } | null)?.organizationId ??
+            params.args?.data?.organizationId ??
+            null;
+
+          (this as any).auditLog
+            .create({
+              data: {
+                action: auditAction,
+                entityType: params.model,
+                entityId,
+                actorId: userId,
+                organizationId,
+                // oldValue/newValue deliberately left null this pass: capturing full
+                // row snapshots risks persisting PII (bank/health/salary fields, etc.)
+                // into a report-surfaced table with no redaction policy yet.
+                // ipAddress/userAgent deliberately left null: no CLS-accessible
+                // request-context value exists at this layer today (LoginHistory
+                // captures these directly from the controller/service call chain,
+                // not via CLS) — wiring a new CLS key end-to-end is out of scope.
+              },
+            })
+            .catch((err: unknown) => {
+              this.logger.warn(
+                `Failed to write AuditLog for ${params.model}.${params.action}: ${
+                  err instanceof Error ? err.message : String(err)
+                }`,
+              );
+            });
+        }
+      }
+
+      return result;
     });
   }
 

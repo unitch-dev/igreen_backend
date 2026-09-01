@@ -1261,6 +1261,135 @@ describe('Reports & Dashboard module (e2e)', () => {
       return { ...base, auditOnlyToken, auditExportToken };
     }
 
+    async function createAuditWriterFixture(label: string): Promise<AuditFixture> {
+      const base = await createOrgFixture(label, 1);
+      const passwordHash = await bcrypt.hash(PASSWORD, 10);
+
+      const writerRole = await prisma.role.create({
+        data: {
+          organizationId: base.organizationId,
+          name: `${label}-audit-writer`,
+          permissions: ['report:audit', 'employee:create', 'employee:update'],
+          isSystemRole: false,
+        },
+      });
+
+      const emp = await prisma.employee.create({
+        data: {
+          organizationId: base.organizationId,
+          empCode: `AWR-${label}`.slice(0, 10),
+          firstName: 'Fx',
+          lastName: label,
+          phone: `9${Math.floor(Math.random() * 1000000000)}`,
+          departmentId: base.departmentId,
+          designationId: base.designationId,
+          payrollStructureId: base.payrollStructureId,
+          status: 'ACTIVE',
+        },
+      });
+      const email = `audit-writer-${label}@reports-e2e.test`;
+      const user = await prisma.user.create({
+        data: {
+          organizationId: base.organizationId,
+          employeeId: emp.id,
+          email,
+          passwordHash,
+          isActive: true,
+        },
+      });
+      await prisma.userRole.create({ data: { userId: user.id, roleId: writerRole.id } });
+      const login = await request(app.getHttpServer())
+        .post('/api/v1/auth/login')
+        .send({ email, password: PASSWORD })
+        .expect(200);
+
+      return { ...base, auditOnlyToken: login.body.data.accessToken, auditExportToken: '' };
+    }
+
+    // ─── AuditLog write-path (Prisma middleware) ───────────────────────────────
+    // Regression coverage for the PrismaService `$use` middleware that writes an
+    // AuditLog row for every mutation on an AUDITED_MODELS entry. See
+    // src/prisma/prisma.service.ts.
+    describe('AuditLog write-path', () => {
+      it('POSITIVE: creating a Department produces an AuditLog CREATE row surfaced via systemChanges with the actor resolved', async () => {
+        const org = await createAuditWriterFixture('auditlog-create');
+
+        const createRes = await request(app.getHttpServer())
+          .post('/api/v1/departments')
+          .set(authed(org.auditOnlyToken, org.organizationId))
+          .send({ name: `Audit Test Dept ${uuid()}` })
+          .expect(201);
+        const departmentId = createRes.body.data.id;
+
+        const from = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+        const to = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+
+        const auditRes = await request(app.getHttpServer())
+          .get('/api/v1/reports/audit')
+          .query({ from, to, limit: 100 })
+          .set(authed(org.auditOnlyToken, org.organizationId))
+          .expect(200);
+
+        const entry = auditRes.body.data.systemChanges.find(
+          (c: any) => c.entityType === 'Department' && c.entityId === departmentId,
+        );
+        expect(entry).toBeDefined();
+        expect(entry.action).toBe('CREATE');
+        expect(entry.actorName).toBe(`Fx auditlog-create`);
+
+        // Now update the same department and confirm an UPDATE row is also produced.
+        await request(app.getHttpServer())
+          .put(`/api/v1/departments/${departmentId}`)
+          .set(authed(org.auditOnlyToken, org.organizationId))
+          .send({ name: `Audit Test Dept Renamed ${uuid()}` })
+          .expect(200);
+
+        const auditRes2 = await request(app.getHttpServer())
+          .get('/api/v1/reports/audit')
+          .query({ from, to: new Date(Date.now() + 5 * 60 * 1000).toISOString(), limit: 100 })
+          .set(authed(org.auditOnlyToken, org.organizationId))
+          .expect(200);
+
+        const updateEntry = auditRes2.body.data.systemChanges.find(
+          (c: any) => c.entityType === 'Department' && c.entityId === departmentId && c.action === 'UPDATE',
+        );
+        expect(updateEntry).toBeDefined();
+        expect(updateEntry.actorName).toBe(`Fx auditlog-create`);
+      });
+
+      it('NEGATIVE: a login (writes LoginHistory, a non-audited model) never produces an AuditLog row for LoginHistory', async () => {
+        const org = await createAuditWriterFixture('auditlog-negative');
+
+        // The fixture setup itself already performed at least one login (readerLogin +
+        // the writer's own login above) — assert no AuditLog row was EVER created for
+        // the non-audited LoginHistory model, proving the whitelist didn't silently
+        // become "log everything".
+        const rows = await prisma.auditLog.findMany({ where: { entityType: 'LoginHistory' } });
+        expect(rows.length).toBe(0);
+      });
+
+      it('RESILIENCE: the Department create still succeeds (201) even if the AuditLog insert fails', async () => {
+        const org = await createAuditWriterFixture('auditlog-resilience');
+
+        const spy = jest
+          .spyOn(prisma.auditLog, 'create')
+          .mockRejectedValueOnce(new Error('simulated audit log failure') as never);
+
+        try {
+          const res = await request(app.getHttpServer())
+            .post('/api/v1/departments')
+            .set(authed(org.auditOnlyToken, org.organizationId))
+            .send({ name: `Resilience Dept ${uuid()}` })
+            .expect(201);
+
+          const persisted = await prisma.department.findUnique({ where: { id: res.body.data.id } });
+          expect(persisted).not.toBeNull();
+        } finally {
+          spy.mockRestore();
+        }
+      });
+    });
+
     it('a user with report:read but not report:audit gets 403 on GET /reports/audit', async () => {
       const org = await createOrgFixture('audit-noaudit', 1);
       await request(app.getHttpServer())

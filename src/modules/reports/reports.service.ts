@@ -897,6 +897,28 @@ export class ReportsService {
       }),
     ]);
 
+    // Resolve actor display identity for systemChanges in a single batch query,
+    // using the same display-name convention as the login `rows` above.
+    const actorIds = [...new Set(systemChanges.map((a) => a.actorId).filter((id): id is string => !!id))];
+    const actors =
+      actorIds.length > 0
+        ? await this.prisma.user.findMany({
+            where: { id: { in: actorIds } },
+            include: {
+              employee: { select: { firstName: true, lastName: true, empCode: true } },
+            },
+          })
+        : [];
+    const actorMap = new Map(
+      actors.map((u) => [
+        u.id,
+        {
+          name: u.employee ? `${u.employee.firstName} ${u.employee.lastName}` : u.email,
+          empCode: u.employee?.empCode ?? null,
+        },
+      ]),
+    );
+
     return {
       from: from.toISOString(),
       to: to.toISOString(),
@@ -923,6 +945,8 @@ export class ReportsService {
         entityType: a.entityType,
         entityId: a.entityId,
         actorId: a.actorId,
+        actorName: a.actorId ? (actorMap.get(a.actorId)?.name ?? null) : null,
+        actorEmpCode: a.actorId ? (actorMap.get(a.actorId)?.empCode ?? null) : null,
         occurredAt: a.occurredAt.toISOString(),
         ipAddress: a.ipAddress,
       })),
@@ -1494,7 +1518,7 @@ export class ReportsService {
       drawList(
         doc,
         data.systemChanges.map((a) => ({
-          left: `${a.action} — ${a.entityType}`,
+          left: `${a.action} — ${a.entityType} by ${a.actorName ?? 'System'}`,
           right: a.occurredAt.slice(0, 16).replace('T', ' '),
         })),
       );

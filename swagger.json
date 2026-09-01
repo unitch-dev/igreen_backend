@@ -41903,6 +41903,16 @@
             "type": "string",
             "nullable": true
           },
+          "actorName": {
+            "type": "string",
+            "nullable": true,
+            "description": "Resolved actor display name, or null if unknown/deleted"
+          },
+          "actorEmpCode": {
+            "type": "string",
+            "nullable": true,
+            "description": "Resolved actor employee code, or null if unknown/deleted"
+          },
           "occurredAt": {
             "type": "string"
           },
@@ -41916,6 +41926,8 @@
           "entityType",
           "entityId",
           "actorId",
+          "actorName",
+          "actorEmpCode",
           "occurredAt",
           "ipAddress"
         ]
@@ -41972,7 +41984,7 @@
             }
           },
           "systemChanges": {
-            "description": "Best-effort AuditLog entries for the org/date range (capped, not paginated). Likely empty — nothing in the codebase currently writes to AuditLog.",
+            "description": "AuditLog entries (CREATE/UPDATE/DELETE/UPSERT) for audited business-entity models in the org/date range, with actor identity resolved. Capped, not paginated.",
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/AuditSystemChangeRowDto"

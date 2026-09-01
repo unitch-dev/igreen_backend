@@ -45,6 +45,12 @@ export class AuditSystemChangeRowDto {
   @ApiProperty({ nullable: true })
   actorId: string | null;
 
+  @ApiProperty({ nullable: true, description: 'Resolved actor display name, or null if unknown/deleted' })
+  actorName: string | null;
+
+  @ApiProperty({ nullable: true, description: 'Resolved actor employee code, or null if unknown/deleted' })
+  actorEmpCode: string | null;
+
   @ApiProperty()
   occurredAt: string;
 
@@ -77,8 +83,8 @@ export class AuditHistoryReportDto {
   @ApiProperty({
     type: [AuditSystemChangeRowDto],
     description:
-      'Best-effort AuditLog entries for the org/date range (capped, not paginated). ' +
-      'Likely empty — nothing in the codebase currently writes to AuditLog.',
+      'AuditLog entries (CREATE/UPDATE/DELETE/UPSERT) for audited business-entity models ' +
+      'in the org/date range, with actor identity resolved. Capped, not paginated.',
   })
   systemChanges: AuditSystemChangeRowDto[];
 }
