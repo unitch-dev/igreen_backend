@@ -1,5 +1,5 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { ClsService } from 'nestjs-cls';
 
 // Models that track who created a record
@@ -58,11 +58,25 @@ const MODELS_WITH_UPDATED_BY = new Set([
   'Asset',
 ]);
 
-// Models whose writes are audited into AuditLog: the union of the two sets above.
-// This IS the whitelist — do not maintain a separate list. `AuditLog` itself must
-// NEVER be added to either set above, or this middleware would recursively audit
-// its own audit-log writes.
-const AUDITED_MODELS = new Set([...MODELS_WITH_CREATED_BY, ...MODELS_WITH_UPDATED_BY]);
+// Models deliberately excluded from AuditLog, even though everything else is
+// audited by default. Keep this list short and each exclusion justified —
+// the default posture is "audit everything," not "audit a curated allowlist."
+const EXCLUDED_FROM_AUDIT = new Set([
+  'AuditLog', // mandatory: prevents infinite self-recursion (auditing its own writes)
+  'LoginHistory', // already surfaced separately as its own login-history report section — auditing it too would be redundant, not a "data change" in the CRUD sense
+  'LiveLocation', // high-frequency GPS pings (every few seconds per field employee) — would drown out real audit signal
+  'DeviceToken', // push-notification token housekeeping, not business data
+  'ChatMessage', // high-frequency messaging traffic would flood the audit trail
+  'ChatRoomMember', // join/leave churn, not a meaningful business-data edit
+  'NoticeRead', // read-receipt tracking, not a data change
+]);
+
+// Derive the full current model list from Prisma's own DMMF so this list never
+// drifts as new models are added to schema.prisma in the future — audit
+// coverage is "everything except the explicit exclusions above," not a
+// hand-maintained allowlist that has to be remembered on every new model.
+const ALL_MODEL_NAMES = Prisma.dmmf.datamodel.models.map((m) => m.name);
+const AUDITED_MODELS = new Set(ALL_MODEL_NAMES.filter((name) => !EXCLUDED_FROM_AUDIT.has(name)));
 
 // Maps a Prisma middleware action to the AuditLog.action string we persist.
 // NOTE: `upsert` is tagged 'UPSERT' rather than being resolved to CREATE/UPDATE —

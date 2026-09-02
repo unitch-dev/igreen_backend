@@ -360,48 +360,76 @@ export class EmployeesService {
       if (!zone) throw new BadRequestException(`Zone ${dto.zoneId} not found in this organization`);
     }
 
-    return this.prisma.employee.update({
-      where: { id },
-      data: {
-        ...(dto.firstName !== undefined && { firstName: dto.firstName }),
-        ...(dto.lastName !== undefined && { lastName: dto.lastName }),
-        ...(dto.email !== undefined && { email: dto.email }),
-        ...(dto.phone !== undefined && { phone: dto.phone }),
-        ...(dto.departmentId !== undefined && { departmentId: dto.departmentId }),
-        ...(dto.designationId !== undefined && { designationId: dto.designationId }),
-        ...(dto.payrollStructureId !== undefined && { payrollStructureId: dto.payrollStructureId }),
-        ...(dto.leavePolicyId !== undefined && { leavePolicyId: dto.leavePolicyId }),
-        ...(dto.zoneId !== undefined && { zoneId: dto.zoneId }),
-        ...(dto.workLocation !== undefined && { workLocation: dto.workLocation }),
-        ...(dto.employmentType !== undefined && { employmentType: dto.employmentType }),
-        ...(dto.joiningDate !== undefined && { joiningDate: new Date(dto.joiningDate) }),
-        ...(dto.probationEndDate !== undefined && {
-          probationEndDate: new Date(dto.probationEndDate),
-        }),
-        ...(dto.reportingManagerId !== undefined && { reportingManagerId: dto.reportingManagerId }),
-        ...(dto.dateOfBirth !== undefined && { dateOfBirth: new Date(dto.dateOfBirth) }),
-        ...(dto.gender !== undefined && { gender: dto.gender }),
-        ...(dto.nationality !== undefined && { nationality: dto.nationality }),
-        ...(dto.bloodGroup !== undefined && { bloodGroup: dto.bloodGroup }),
-        ...(dto.address !== undefined && {
-          address: dto.address as unknown as Prisma.InputJsonValue,
-        }),
-        ...(dto.healthInfo !== undefined && {
-          healthInfo: dto.healthInfo as unknown as Prisma.InputJsonValue,
-        }),
-        ...(dto.previousEmployment !== undefined && {
-          previousEmployment: dto.previousEmployment as unknown as Prisma.InputJsonValue,
-        }),
-        ...(dto.referenceContacts !== undefined && {
-          referenceContacts: dto.referenceContacts as unknown as Prisma.InputJsonValue,
-        }),
-        ...(dto.profilePhotoUrl !== undefined && { profilePhotoUrl: dto.profilePhotoUrl }),
-        ...(dto.pfNumber !== undefined && { pfNumber: dto.pfNumber }),
-        ...(dto.esiNumber !== undefined && { esiNumber: dto.esiNumber }),
-        ...(dto.uanNumber !== undefined && { uanNumber: dto.uanNumber }),
-        updatedById,
-      },
-    });
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const updated = await tx.employee.update({
+          where: { id },
+          data: {
+            ...(dto.firstName !== undefined && { firstName: dto.firstName }),
+            ...(dto.lastName !== undefined && { lastName: dto.lastName }),
+            ...(dto.email !== undefined && { email: dto.email }),
+            ...(dto.phone !== undefined && { phone: dto.phone }),
+            ...(dto.departmentId !== undefined && { departmentId: dto.departmentId }),
+            ...(dto.designationId !== undefined && { designationId: dto.designationId }),
+            ...(dto.payrollStructureId !== undefined && {
+              payrollStructureId: dto.payrollStructureId,
+            }),
+            ...(dto.leavePolicyId !== undefined && { leavePolicyId: dto.leavePolicyId }),
+            ...(dto.zoneId !== undefined && { zoneId: dto.zoneId }),
+            ...(dto.workLocation !== undefined && { workLocation: dto.workLocation }),
+            ...(dto.employmentType !== undefined && { employmentType: dto.employmentType }),
+            ...(dto.joiningDate !== undefined && { joiningDate: new Date(dto.joiningDate) }),
+            ...(dto.probationEndDate !== undefined && {
+              probationEndDate: new Date(dto.probationEndDate),
+            }),
+            ...(dto.reportingManagerId !== undefined && {
+              reportingManagerId: dto.reportingManagerId,
+            }),
+            ...(dto.dateOfBirth !== undefined && { dateOfBirth: new Date(dto.dateOfBirth) }),
+            ...(dto.gender !== undefined && { gender: dto.gender }),
+            ...(dto.nationality !== undefined && { nationality: dto.nationality }),
+            ...(dto.bloodGroup !== undefined && { bloodGroup: dto.bloodGroup }),
+            ...(dto.address !== undefined && {
+              address: dto.address as unknown as Prisma.InputJsonValue,
+            }),
+            ...(dto.healthInfo !== undefined && {
+              healthInfo: dto.healthInfo as unknown as Prisma.InputJsonValue,
+            }),
+            ...(dto.previousEmployment !== undefined && {
+              previousEmployment: dto.previousEmployment as unknown as Prisma.InputJsonValue,
+            }),
+            ...(dto.referenceContacts !== undefined && {
+              referenceContacts: dto.referenceContacts as unknown as Prisma.InputJsonValue,
+            }),
+            ...(dto.profilePhotoUrl !== undefined && { profilePhotoUrl: dto.profilePhotoUrl }),
+            ...(dto.pfNumber !== undefined && { pfNumber: dto.pfNumber }),
+            ...(dto.esiNumber !== undefined && { esiNumber: dto.esiNumber }),
+            ...(dto.uanNumber !== undefined && { uanNumber: dto.uanNumber }),
+            updatedById,
+          },
+        });
+
+        // Keep the linked User's login-identity fields in sync with the
+        // Employee record (source of truth) — see docs/known-issues.md
+        // (2026-09-02, User/Employee contact-field drift).
+        if (dto.phone !== undefined || dto.email !== undefined) {
+          await tx.user.updateMany({
+            where: { employeeId: id },
+            data: {
+              ...(dto.phone !== undefined && { phone: dto.phone }),
+              ...(dto.email !== undefined && { email: dto.email }),
+            },
+          });
+        }
+
+        return updated;
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictException('Email already in use by another account in this organization');
+      }
+      throw error;
+    }
   }
 
   // Self-service update: an employee editing their own personal details.
@@ -423,30 +451,54 @@ export class EmployeesService {
     });
     if (!employee) throw new NotFoundException('Employee not found');
 
-    return this.prisma.employee.update({
-      where: { id },
-      data: {
-        ...(dto.dateOfBirth !== undefined && { dateOfBirth: new Date(dto.dateOfBirth) }),
-        ...(dto.gender !== undefined && { gender: dto.gender }),
-        ...(dto.nationality !== undefined && { nationality: dto.nationality }),
-        ...(dto.bloodGroup !== undefined && { bloodGroup: dto.bloodGroup }),
-        ...(dto.phone !== undefined && { phone: dto.phone }),
-        ...(dto.email !== undefined && { email: dto.email }),
-        ...(dto.address !== undefined && {
-          address: dto.address as unknown as Prisma.InputJsonValue,
-        }),
-        ...(dto.healthInfo !== undefined && {
-          healthInfo: dto.healthInfo as unknown as Prisma.InputJsonValue,
-        }),
-        ...(dto.previousEmployment !== undefined && {
-          previousEmployment: dto.previousEmployment as unknown as Prisma.InputJsonValue,
-        }),
-        ...(dto.referenceContacts !== undefined && {
-          referenceContacts: dto.referenceContacts as unknown as Prisma.InputJsonValue,
-        }),
-        ...(dto.profilePhotoUrl !== undefined && { profilePhotoUrl: dto.profilePhotoUrl }),
-      },
-    });
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const updated = await tx.employee.update({
+          where: { id },
+          data: {
+            ...(dto.dateOfBirth !== undefined && { dateOfBirth: new Date(dto.dateOfBirth) }),
+            ...(dto.gender !== undefined && { gender: dto.gender }),
+            ...(dto.nationality !== undefined && { nationality: dto.nationality }),
+            ...(dto.bloodGroup !== undefined && { bloodGroup: dto.bloodGroup }),
+            ...(dto.phone !== undefined && { phone: dto.phone }),
+            ...(dto.email !== undefined && { email: dto.email }),
+            ...(dto.address !== undefined && {
+              address: dto.address as unknown as Prisma.InputJsonValue,
+            }),
+            ...(dto.healthInfo !== undefined && {
+              healthInfo: dto.healthInfo as unknown as Prisma.InputJsonValue,
+            }),
+            ...(dto.previousEmployment !== undefined && {
+              previousEmployment: dto.previousEmployment as unknown as Prisma.InputJsonValue,
+            }),
+            ...(dto.referenceContacts !== undefined && {
+              referenceContacts: dto.referenceContacts as unknown as Prisma.InputJsonValue,
+            }),
+            ...(dto.profilePhotoUrl !== undefined && { profilePhotoUrl: dto.profilePhotoUrl }),
+          },
+        });
+
+        // Keep the linked User's login-identity fields in sync with the
+        // Employee record (source of truth) — see docs/known-issues.md
+        // (2026-09-02, User/Employee contact-field drift).
+        if (dto.phone !== undefined || dto.email !== undefined) {
+          await tx.user.updateMany({
+            where: { employeeId: id },
+            data: {
+              ...(dto.phone !== undefined && { phone: dto.phone }),
+              ...(dto.email !== undefined && { email: dto.email }),
+            },
+          });
+        }
+
+        return updated;
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictException('Email already in use by another account in this organization');
+      }
+      throw error;
+    }
   }
 
   // Self-OR-admin gate for bank details, emergency contact, documents, and

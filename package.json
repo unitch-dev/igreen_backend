@@ -26,7 +26,8 @@
     "rbac:refresh": "ts-node -r tsconfig-paths/register src/scripts/rbac-refresh.ts",
     "seed:employees-payroll": "ts-node -r tsconfig-paths/register prisma/seed-employees-payroll.ts",
     "seed:reset-manager-finance-logins": "ts-node -r tsconfig-paths/register prisma/reset-manager-finance-logins.ts",
-    "seed:dummy-attendance": "ts-node -r tsconfig-paths/register prisma/seed-dummy-attendance.ts"
+    "seed:dummy-attendance": "ts-node -r tsconfig-paths/register prisma/seed-dummy-attendance.ts",
+    "backfill:user-contact-sync": "ts-node -r tsconfig-paths/register prisma/backfill-user-contact-sync.ts"
   },
   "dependencies": {
     "@nestjs/axios": "^3.0.2",

@@ -56,6 +56,9 @@ describe('Audit logging middleware (e2e)', () => {
     for (const organizationId of createdOrgIds) {
       await prisma.auditLog.deleteMany({ where: { organizationId } });
       await prisma.department.deleteMany({ where: { organizationId } });
+      await prisma.zone.deleteMany({ where: { organizationId } });
+      await prisma.workLocation.deleteMany({ where: { organizationId } });
+      await prisma.deviceToken.deleteMany({ where: { user: { organizationId } } });
       await prisma.loginHistory.deleteMany({ where: { user: { organizationId } } });
       await prisma.userRole.deleteMany({ where: { user: { organizationId } } });
       await prisma.user.deleteMany({ where: { organizationId } });
@@ -83,8 +86,18 @@ describe('Audit logging middleware (e2e)', () => {
       data: {
         organizationId: org.id,
         name: `audit-e2e-admin-${label}`,
-        description: 'employee:create/read/update + report:audit for audit-log e2e coverage',
-        permissions: ['employee:create', 'employee:read', 'employee:update', 'report:audit'],
+        description:
+          'employee:create/read/update + report:audit + org:create/read/update for audit-log e2e ' +
+          'coverage (org:create/update exercise the widened denylist-based audit scope via Zone/WorkLocation)',
+        permissions: [
+          'employee:create',
+          'employee:read',
+          'employee:update',
+          'report:audit',
+          'org:create',
+          'org:read',
+          'org:update',
+        ],
         isSystemRole: false,
       },
     });
@@ -196,6 +209,61 @@ describe('Audit logging middleware (e2e)', () => {
     });
   });
 
+  // ─── POSITIVE (widened scope) ───────────────────────────────────────────────
+
+  describe('POSITIVE (widened scope): models newly INCLUDED under the denylist are audited', () => {
+    // Zone and WorkLocation were NOT in the old curated ~32-model allowlist
+    // (they appear in neither MODELS_WITH_CREATED_BY nor MODELS_WITH_UPDATED_BY
+    // above), so under the old allowlist-based AUDITED_MODELS they would never
+    // have produced an AuditLog row. Under the new denylist they are audited
+    // by default since neither is in EXCLUDED_FROM_AUDIT.
+    let org: OrgFixture;
+
+    beforeAll(async () => {
+      org = await createOrgFixture('widened-positive');
+    });
+
+    it('POST /zones (previously outside the old allowlist) now creates an AuditLog row', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/zones')
+        .set(authed(org.adminToken, org.organizationId))
+        .send({ name: `North Zone ${uuid()}` })
+        .expect(201);
+
+      const zoneId = res.body.data.id;
+
+      const auditRow = await waitForAuditLog({
+        organizationId: org.organizationId,
+        entityType: 'Zone',
+        entityId: zoneId,
+      });
+
+      expect(auditRow).not.toBeNull();
+      expect(auditRow?.action).toBe('CREATE');
+      expect(auditRow?.actorId).toBe(org.adminUserId);
+    });
+
+    it('POST /work-locations (previously outside the old allowlist) now creates an AuditLog row', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/work-locations')
+        .set(authed(org.adminToken, org.organizationId))
+        .send({ name: `HQ - ${uuid()}`, lat: 19.076, lng: 72.8777, radiusMeters: 200 })
+        .expect(201);
+
+      const workLocationId = res.body.data.id;
+
+      const auditRow = await waitForAuditLog({
+        organizationId: org.organizationId,
+        entityType: 'WorkLocation',
+        entityId: workLocationId,
+      });
+
+      expect(auditRow).not.toBeNull();
+      expect(auditRow?.action).toBe('CREATE');
+      expect(auditRow?.actorId).toBe(org.adminUserId);
+    });
+  });
+
   // ─── NEGATIVE ─────────────────────────────────────────────────────────────
 
   describe('NEGATIVE: non-audited model mutation does not create an AuditLog row', () => {
@@ -205,6 +273,14 @@ describe('Audit logging middleware (e2e)', () => {
       org = await createOrgFixture('negative');
     });
 
+    // Re-verified under the new denylist mechanism: LoginHistory is still
+    // listed in EXCLUDED_FROM_AUDIT, so it must still produce zero AuditLog
+    // rows even though the underlying inclusion mechanism flipped from an
+    // allowlist ("is LoginHistory in AUDITED_MODELS?" → previously always no,
+    // since it was never added) to a denylist ("is LoginHistory in
+    // EXCLUDED_FROM_AUDIT?" → now explicitly yes). Same observable outcome,
+    // different code path getting there — worth asserting explicitly rather
+    // than assuming the refactor preserved behavior by coincidence.
     it('creating a LoginHistory row (via login) does not produce an AuditLog entry', async () => {
       const beforeCount = await prisma.auditLog.count({
         where: { organizationId: org.organizationId, entityType: 'LoginHistory' },
@@ -221,6 +297,33 @@ describe('Audit logging middleware (e2e)', () => {
 
       const afterCount = await prisma.auditLog.count({
         where: { organizationId: org.organizationId, entityType: 'LoginHistory' },
+      });
+
+      expect(afterCount).toBe(beforeCount);
+      expect(afterCount).toBe(0);
+    });
+
+    // Second newly-excluded model, exercised via a real authenticated HTTP
+    // call (not a direct prisma.create in the test) so the middleware's
+    // `userId` CLS-context guard is actually populated — a bare prisma call
+    // from test code with no request in flight would trivially produce zero
+    // audit rows regardless of the denylist, proving nothing.
+    it('POST /auth/device-token (DeviceToken, newly-excluded) does not produce an AuditLog entry', async () => {
+      const beforeCount = await prisma.auditLog.count({
+        where: { organizationId: org.organizationId, entityType: 'DeviceToken' },
+      });
+
+      await request(app.getHttpServer())
+        .post('/api/v1/auth/device-token')
+        .set(authed(org.adminToken, org.organizationId))
+        .send({ token: `fcm-${uuid()}`, platform: 'android' })
+        .expect(200);
+
+      const deviceTokenRows = await prisma.deviceToken.count({ where: { userId: org.adminUserId } });
+      expect(deviceTokenRows).toBeGreaterThan(0);
+
+      const afterCount = await prisma.auditLog.count({
+        where: { organizationId: org.organizationId, entityType: 'DeviceToken' },
       });
 
       expect(afterCount).toBe(beforeCount);
