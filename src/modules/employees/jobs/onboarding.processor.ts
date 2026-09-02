@@ -1,5 +1,6 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Job } from 'bullmq';
 import { NotificationsService } from '../../notifications/notifications.service';
 
@@ -23,7 +24,10 @@ interface InviteJobData {
 export class OnboardingProcessor extends WorkerHost {
   private readonly logger = new Logger(OnboardingProcessor.name);
 
-  constructor(private readonly notifications: NotificationsService) {
+  constructor(
+    private readonly notifications: NotificationsService,
+    private readonly config: ConfigService,
+  ) {
     super();
   }
 
@@ -61,8 +65,13 @@ export class OnboardingProcessor extends WorkerHost {
   }
 
   private async handleInvite(data: InviteJobData) {
-    const appUrl = process.env.APP_URL ?? 'http://localhost:3001';
-    const link = `${appUrl}/onboarding/${data.token}`;
+    // The onboarding link is a FRONTEND route (/onboarding/:token), not a
+    // backend one — must use frontendUrl (the frontend's public origin), not
+    // appUrl (the backend's own address, used for serving uploaded files).
+    // Using appUrl here previously sent candidates a link pointing at the
+    // API server instead of the SPA.
+    const frontendUrl = this.config.get<string>('frontendUrl');
+    const link = `${frontendUrl}/onboarding/${data.token}`;
     const html = `
       <h2>You've been invited to join our team!</h2>
       <p>Dear ${data.candidateName ?? 'Candidate'},</p>
