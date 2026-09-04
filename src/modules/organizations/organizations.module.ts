@@ -18,6 +18,7 @@ import { WorkLocationsController } from './work-locations/work-locations.control
 import { WorkLocationsService } from './work-locations/work-locations.service';
 import { ZonesController } from './zones/zones.controller';
 import { ZonesService } from './zones/zones.service';
+import { AutoLogoutScheduler } from './auto-logout.scheduler';
 
 @Module({
   imports: [MulterModule.register({ storage: memoryStorage() })],
@@ -41,6 +42,7 @@ import { ZonesService } from './zones/zones.service';
     LeavePoliciesService,
     WorkLocationsService,
     ZonesService,
+    AutoLogoutScheduler,
   ],
   exports: [
     DepartmentsService,

@@ -25,7 +25,7 @@ import { SubmitTodoDto } from './dto/submit-todo.dto';
 import { ApproveTodoDto } from './dto/approve-todo.dto';
 import { TodoResponseDto } from './dto/todo-response.dto';
 
-@ApiTags('Incentives')
+@ApiTags('Todos')
 @ApiBearerAuth()
 @ApiCommonErrorResponses()
 @Controller('todos')

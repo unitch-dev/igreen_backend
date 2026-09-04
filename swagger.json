@@ -17409,978 +17409,6 @@
         ]
       }
     },
-    "/api/v1/todos": {
-      "post": {
-        "operationId": "TodosController_create",
-        "summary": "Create a todo",
-        "description": "Creates a PENDING todo for the caller’s own employee record, or on behalf of another employee if the caller holds todo:approve.",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateTodoDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Todo created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/SuccessResponseDto"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/TodoResponseDto"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request — Validation failed or missing required fields",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "example": {
-                    "success": false,
-                    "message": "Validation failed: email must be a valid email address",
-                    "error": {
-                      "message": [
-                        "email must be a valid email address"
-                      ],
-                      "statusCode": 400,
-                      "path": "/api/v1/example",
-                      "method": "POST"
-                    },
-                    "errorType": "HTTP_400",
-                    "httpCode": 400
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized — Invalid or expired token",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "example": {
-                    "success": false,
-                    "message": "Invalid or expired token",
-                    "error": {
-                      "message": "Invalid or expired token",
-                      "statusCode": 401,
-                      "path": "/api/v1/example",
-                      "method": "GET"
-                    },
-                    "errorType": "HTTP_401",
-                    "httpCode": 401
-                  }
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden — Insufficient permissions",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "example": {
-                    "success": false,
-                    "message": "Missing required permissions: payroll:run",
-                    "error": {
-                      "message": "Missing required permissions: payroll:run",
-                      "statusCode": 403,
-                      "path": "/api/v1/example",
-                      "method": "GET"
-                    },
-                    "errorType": "HTTP_403",
-                    "httpCode": 403
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found — Resource does not exist for this organization",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "example": {
-                    "success": false,
-                    "message": "Resource not found",
-                    "error": {
-                      "message": "Resource not found",
-                      "statusCode": 404,
-                      "path": "/api/v1/example/123",
-                      "method": "GET"
-                    },
-                    "errorType": "HTTP_404",
-                    "httpCode": 404
-                  }
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflict — Resource already exists or is in an incompatible state",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "example": {
-                    "success": false,
-                    "message": "A payroll run for 7/2026 already exists for this organization",
-                    "error": {
-                      "message": "A payroll run for 7/2026 already exists for this organization",
-                      "statusCode": 409,
-                      "path": "/api/v1/example",
-                      "method": "POST"
-                    },
-                    "errorType": "HTTP_409",
-                    "httpCode": 409
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal Server Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "example": {
-                    "success": false,
-                    "message": "Internal server error",
-                    "error": {
-                      "message": "Internal server error",
-                      "statusCode": 500,
-                      "path": "/api/v1/example",
-                      "method": "GET"
-                    },
-                    "errorType": "HTTP_500",
-                    "httpCode": 500
-                  }
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Incentives"
-        ],
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      },
-      "get": {
-        "operationId": "TodosController_findAll",
-        "summary": "List todos (paginated)",
-        "description": "Users without todo:approve see only their own todos; users with todo:approve see all todos in the organization, optionally filtered by ?employeeId=&status=&incentiveRuleId=.",
-        "parameters": [
-          {
-            "name": "page",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "minimum": 1,
-              "default": 1,
-              "type": "number"
-            }
-          },
-          {
-            "name": "limit",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "minimum": 1,
-              "maximum": 100,
-              "default": 20,
-              "type": "number"
-            }
-          },
-          {
-            "name": "status",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "enum": [
-                "PENDING",
-                "SUBMITTED",
-                "APPROVED",
-                "REJECTED"
-              ],
-              "type": "string"
-            }
-          },
-          {
-            "name": "employeeId",
-            "required": false,
-            "in": "query",
-            "description": "Filter by employee UUID (approvers only)",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "incentiveRuleId",
-            "required": false,
-            "in": "query",
-            "description": "Filter by IncentiveRule UUID",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Paginated list of todos",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/PaginatedResponseDto"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "properties": {
-                            "data": {
-                              "type": "array",
-                              "items": {
-                                "$ref": "#/components/schemas/TodoResponseDto"
-                              }
-                            },
-                            "meta": {
-                              "properties": {
-                                "total": {
-                                  "type": "number",
-                                  "example": 100
-                                },
-                                "page": {
-                                  "type": "number",
-                                  "example": 1
-                                },
-                                "limit": {
-                                  "type": "number",
-                                  "example": 20
-                                },
-                                "totalPages": {
-                                  "type": "number",
-                                  "example": 5
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request — Validation failed or missing required fields",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "example": {
-                    "success": false,
-                    "message": "Validation failed: email must be a valid email address",
-                    "error": {
-                      "message": [
-                        "email must be a valid email address"
-                      ],
-                      "statusCode": 400,
-                      "path": "/api/v1/example",
-                      "method": "POST"
-                    },
-                    "errorType": "HTTP_400",
-                    "httpCode": 400
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized — Invalid or expired token",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "example": {
-                    "success": false,
-                    "message": "Invalid or expired token",
-                    "error": {
-                      "message": "Invalid or expired token",
-                      "statusCode": 401,
-                      "path": "/api/v1/example",
-                      "method": "GET"
-                    },
-                    "errorType": "HTTP_401",
-                    "httpCode": 401
-                  }
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden — Insufficient permissions",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "example": {
-                    "success": false,
-                    "message": "Missing required permissions: payroll:run",
-                    "error": {
-                      "message": "Missing required permissions: payroll:run",
-                      "statusCode": 403,
-                      "path": "/api/v1/example",
-                      "method": "GET"
-                    },
-                    "errorType": "HTTP_403",
-                    "httpCode": 403
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found — Resource does not exist for this organization",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "example": {
-                    "success": false,
-                    "message": "Resource not found",
-                    "error": {
-                      "message": "Resource not found",
-                      "statusCode": 404,
-                      "path": "/api/v1/example/123",
-                      "method": "GET"
-                    },
-                    "errorType": "HTTP_404",
-                    "httpCode": 404
-                  }
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflict — Resource already exists or is in an incompatible state",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "example": {
-                    "success": false,
-                    "message": "A payroll run for 7/2026 already exists for this organization",
-                    "error": {
-                      "message": "A payroll run for 7/2026 already exists for this organization",
-                      "statusCode": 409,
-                      "path": "/api/v1/example",
-                      "method": "POST"
-                    },
-                    "errorType": "HTTP_409",
-                    "httpCode": 409
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal Server Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "example": {
-                    "success": false,
-                    "message": "Internal server error",
-                    "error": {
-                      "message": "Internal server error",
-                      "statusCode": 500,
-                      "path": "/api/v1/example",
-                      "method": "GET"
-                    },
-                    "errorType": "HTTP_500",
-                    "httpCode": 500
-                  }
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Incentives"
-        ],
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/todos/{id}": {
-      "get": {
-        "operationId": "TodosController_findOne",
-        "summary": "Get a single todo",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "description": "TodoTask UUID",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Todo detail",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/SuccessResponseDto"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/TodoResponseDto"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request — Validation failed or missing required fields",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "example": {
-                    "success": false,
-                    "message": "Validation failed: email must be a valid email address",
-                    "error": {
-                      "message": [
-                        "email must be a valid email address"
-                      ],
-                      "statusCode": 400,
-                      "path": "/api/v1/example",
-                      "method": "POST"
-                    },
-                    "errorType": "HTTP_400",
-                    "httpCode": 400
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized — Invalid or expired token",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "example": {
-                    "success": false,
-                    "message": "Invalid or expired token",
-                    "error": {
-                      "message": "Invalid or expired token",
-                      "statusCode": 401,
-                      "path": "/api/v1/example",
-                      "method": "GET"
-                    },
-                    "errorType": "HTTP_401",
-                    "httpCode": 401
-                  }
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden — Insufficient permissions",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "example": {
-                    "success": false,
-                    "message": "Missing required permissions: payroll:run",
-                    "error": {
-                      "message": "Missing required permissions: payroll:run",
-                      "statusCode": 403,
-                      "path": "/api/v1/example",
-                      "method": "GET"
-                    },
-                    "errorType": "HTTP_403",
-                    "httpCode": 403
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found — Resource does not exist for this organization",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "example": {
-                    "success": false,
-                    "message": "Resource not found",
-                    "error": {
-                      "message": "Resource not found",
-                      "statusCode": 404,
-                      "path": "/api/v1/example/123",
-                      "method": "GET"
-                    },
-                    "errorType": "HTTP_404",
-                    "httpCode": 404
-                  }
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflict — Resource already exists or is in an incompatible state",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "example": {
-                    "success": false,
-                    "message": "A payroll run for 7/2026 already exists for this organization",
-                    "error": {
-                      "message": "A payroll run for 7/2026 already exists for this organization",
-                      "statusCode": 409,
-                      "path": "/api/v1/example",
-                      "method": "POST"
-                    },
-                    "errorType": "HTTP_409",
-                    "httpCode": 409
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal Server Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "example": {
-                    "success": false,
-                    "message": "Internal server error",
-                    "error": {
-                      "message": "Internal server error",
-                      "statusCode": 500,
-                      "path": "/api/v1/example",
-                      "method": "GET"
-                    },
-                    "errorType": "HTTP_500",
-                    "httpCode": 500
-                  }
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Incentives"
-        ],
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/todos/{id}/submit": {
-      "put": {
-        "operationId": "TodosController_submit",
-        "summary": "Submit a completed quantity for review",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "description": "TodoTask UUID",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SubmitTodoDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Todo submitted for review",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/SuccessResponseDto"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/TodoResponseDto"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request — Validation failed or missing required fields",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "example": {
-                    "success": false,
-                    "message": "Validation failed: email must be a valid email address",
-                    "error": {
-                      "message": [
-                        "email must be a valid email address"
-                      ],
-                      "statusCode": 400,
-                      "path": "/api/v1/example",
-                      "method": "POST"
-                    },
-                    "errorType": "HTTP_400",
-                    "httpCode": 400
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized — Invalid or expired token",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "example": {
-                    "success": false,
-                    "message": "Invalid or expired token",
-                    "error": {
-                      "message": "Invalid or expired token",
-                      "statusCode": 401,
-                      "path": "/api/v1/example",
-                      "method": "GET"
-                    },
-                    "errorType": "HTTP_401",
-                    "httpCode": 401
-                  }
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden — Insufficient permissions",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "example": {
-                    "success": false,
-                    "message": "Missing required permissions: payroll:run",
-                    "error": {
-                      "message": "Missing required permissions: payroll:run",
-                      "statusCode": 403,
-                      "path": "/api/v1/example",
-                      "method": "GET"
-                    },
-                    "errorType": "HTTP_403",
-                    "httpCode": 403
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found — Resource does not exist for this organization",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "example": {
-                    "success": false,
-                    "message": "Resource not found",
-                    "error": {
-                      "message": "Resource not found",
-                      "statusCode": 404,
-                      "path": "/api/v1/example/123",
-                      "method": "GET"
-                    },
-                    "errorType": "HTTP_404",
-                    "httpCode": 404
-                  }
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflict — Resource already exists or is in an incompatible state",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "example": {
-                    "success": false,
-                    "message": "A payroll run for 7/2026 already exists for this organization",
-                    "error": {
-                      "message": "A payroll run for 7/2026 already exists for this organization",
-                      "statusCode": 409,
-                      "path": "/api/v1/example",
-                      "method": "POST"
-                    },
-                    "errorType": "HTTP_409",
-                    "httpCode": 409
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal Server Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "example": {
-                    "success": false,
-                    "message": "Internal server error",
-                    "error": {
-                      "message": "Internal server error",
-                      "statusCode": 500,
-                      "path": "/api/v1/example",
-                      "method": "GET"
-                    },
-                    "errorType": "HTTP_500",
-                    "httpCode": 500
-                  }
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Incentives"
-        ],
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/todos/{id}/approve": {
-      "put": {
-        "operationId": "TodosController_approve",
-        "summary": "Approve or reject a SUBMITTED todo",
-        "description": "On approve, creates an IncentiveLedger entry (quantity * rule rate) held or released depending on dto.hold. On reject, no ledger entry is created.",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "description": "TodoTask UUID",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ApproveTodoDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Todo approved or rejected",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/SuccessResponseDto"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/TodoResponseDto"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request — Validation failed or missing required fields",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "example": {
-                    "success": false,
-                    "message": "Validation failed: email must be a valid email address",
-                    "error": {
-                      "message": [
-                        "email must be a valid email address"
-                      ],
-                      "statusCode": 400,
-                      "path": "/api/v1/example",
-                      "method": "POST"
-                    },
-                    "errorType": "HTTP_400",
-                    "httpCode": 400
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized — Invalid or expired token",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "example": {
-                    "success": false,
-                    "message": "Invalid or expired token",
-                    "error": {
-                      "message": "Invalid or expired token",
-                      "statusCode": 401,
-                      "path": "/api/v1/example",
-                      "method": "GET"
-                    },
-                    "errorType": "HTTP_401",
-                    "httpCode": 401
-                  }
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden — Insufficient permissions",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "example": {
-                    "success": false,
-                    "message": "Missing required permissions: payroll:run",
-                    "error": {
-                      "message": "Missing required permissions: payroll:run",
-                      "statusCode": 403,
-                      "path": "/api/v1/example",
-                      "method": "GET"
-                    },
-                    "errorType": "HTTP_403",
-                    "httpCode": 403
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found — Resource does not exist for this organization",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "example": {
-                    "success": false,
-                    "message": "Resource not found",
-                    "error": {
-                      "message": "Resource not found",
-                      "statusCode": 404,
-                      "path": "/api/v1/example/123",
-                      "method": "GET"
-                    },
-                    "errorType": "HTTP_404",
-                    "httpCode": 404
-                  }
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflict — Resource already exists or is in an incompatible state",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "example": {
-                    "success": false,
-                    "message": "A payroll run for 7/2026 already exists for this organization",
-                    "error": {
-                      "message": "A payroll run for 7/2026 already exists for this organization",
-                      "statusCode": 409,
-                      "path": "/api/v1/example",
-                      "method": "POST"
-                    },
-                    "errorType": "HTTP_409",
-                    "httpCode": 409
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal Server Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "example": {
-                    "success": false,
-                    "message": "Internal server error",
-                    "error": {
-                      "message": "Internal server error",
-                      "statusCode": 500,
-                      "path": "/api/v1/example",
-                      "method": "GET"
-                    },
-                    "errorType": "HTTP_500",
-                    "httpCode": 500
-                  }
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Incentives"
-        ],
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
     "/api/v1/incentive-ledger": {
       "get": {
         "operationId": "IncentiveLedgerController_findAll",
@@ -19919,6 +18947,978 @@
         },
         "tags": [
           "Green Thanks"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/todos": {
+      "post": {
+        "operationId": "TodosController_create",
+        "summary": "Create a todo",
+        "description": "Creates a PENDING todo for the caller’s own employee record, or on behalf of another employee if the caller holds todo:approve.",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTodoDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Todo created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/SuccessResponseDto"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/TodoResponseDto"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request — Validation failed or missing required fields",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Validation failed: email must be a valid email address",
+                    "error": {
+                      "message": [
+                        "email must be a valid email address"
+                      ],
+                      "statusCode": 400,
+                      "path": "/api/v1/example",
+                      "method": "POST"
+                    },
+                    "errorType": "HTTP_400",
+                    "httpCode": 400
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — Invalid or expired token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Invalid or expired token",
+                    "error": {
+                      "message": "Invalid or expired token",
+                      "statusCode": 401,
+                      "path": "/api/v1/example",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_401",
+                    "httpCode": 401
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden — Insufficient permissions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Missing required permissions: payroll:run",
+                    "error": {
+                      "message": "Missing required permissions: payroll:run",
+                      "statusCode": 403,
+                      "path": "/api/v1/example",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_403",
+                    "httpCode": 403
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found — Resource does not exist for this organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Resource not found",
+                    "error": {
+                      "message": "Resource not found",
+                      "statusCode": 404,
+                      "path": "/api/v1/example/123",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_404",
+                    "httpCode": 404
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict — Resource already exists or is in an incompatible state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "A payroll run for 7/2026 already exists for this organization",
+                    "error": {
+                      "message": "A payroll run for 7/2026 already exists for this organization",
+                      "statusCode": 409,
+                      "path": "/api/v1/example",
+                      "method": "POST"
+                    },
+                    "errorType": "HTTP_409",
+                    "httpCode": 409
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Internal server error",
+                    "error": {
+                      "message": "Internal server error",
+                      "statusCode": 500,
+                      "path": "/api/v1/example",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_500",
+                    "httpCode": 500
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Todos"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "get": {
+        "operationId": "TodosController_findAll",
+        "summary": "List todos (paginated)",
+        "description": "Users without todo:approve see only their own todos; users with todo:approve see all todos in the organization, optionally filtered by ?employeeId=&status=&incentiveRuleId=.",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "PENDING",
+                "SUBMITTED",
+                "APPROVED",
+                "REJECTED"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "employeeId",
+            "required": false,
+            "in": "query",
+            "description": "Filter by employee UUID (approvers only)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "incentiveRuleId",
+            "required": false,
+            "in": "query",
+            "description": "Filter by IncentiveRule UUID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated list of todos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/PaginatedResponseDto"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "properties": {
+                            "data": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/components/schemas/TodoResponseDto"
+                              }
+                            },
+                            "meta": {
+                              "properties": {
+                                "total": {
+                                  "type": "number",
+                                  "example": 100
+                                },
+                                "page": {
+                                  "type": "number",
+                                  "example": 1
+                                },
+                                "limit": {
+                                  "type": "number",
+                                  "example": 20
+                                },
+                                "totalPages": {
+                                  "type": "number",
+                                  "example": 5
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request — Validation failed or missing required fields",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Validation failed: email must be a valid email address",
+                    "error": {
+                      "message": [
+                        "email must be a valid email address"
+                      ],
+                      "statusCode": 400,
+                      "path": "/api/v1/example",
+                      "method": "POST"
+                    },
+                    "errorType": "HTTP_400",
+                    "httpCode": 400
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — Invalid or expired token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Invalid or expired token",
+                    "error": {
+                      "message": "Invalid or expired token",
+                      "statusCode": 401,
+                      "path": "/api/v1/example",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_401",
+                    "httpCode": 401
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden — Insufficient permissions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Missing required permissions: payroll:run",
+                    "error": {
+                      "message": "Missing required permissions: payroll:run",
+                      "statusCode": 403,
+                      "path": "/api/v1/example",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_403",
+                    "httpCode": 403
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found — Resource does not exist for this organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Resource not found",
+                    "error": {
+                      "message": "Resource not found",
+                      "statusCode": 404,
+                      "path": "/api/v1/example/123",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_404",
+                    "httpCode": 404
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict — Resource already exists or is in an incompatible state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "A payroll run for 7/2026 already exists for this organization",
+                    "error": {
+                      "message": "A payroll run for 7/2026 already exists for this organization",
+                      "statusCode": 409,
+                      "path": "/api/v1/example",
+                      "method": "POST"
+                    },
+                    "errorType": "HTTP_409",
+                    "httpCode": 409
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Internal server error",
+                    "error": {
+                      "message": "Internal server error",
+                      "statusCode": 500,
+                      "path": "/api/v1/example",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_500",
+                    "httpCode": 500
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Todos"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/todos/{id}": {
+      "get": {
+        "operationId": "TodosController_findOne",
+        "summary": "Get a single todo",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "TodoTask UUID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Todo detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/SuccessResponseDto"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/TodoResponseDto"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request — Validation failed or missing required fields",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Validation failed: email must be a valid email address",
+                    "error": {
+                      "message": [
+                        "email must be a valid email address"
+                      ],
+                      "statusCode": 400,
+                      "path": "/api/v1/example",
+                      "method": "POST"
+                    },
+                    "errorType": "HTTP_400",
+                    "httpCode": 400
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — Invalid or expired token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Invalid or expired token",
+                    "error": {
+                      "message": "Invalid or expired token",
+                      "statusCode": 401,
+                      "path": "/api/v1/example",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_401",
+                    "httpCode": 401
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden — Insufficient permissions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Missing required permissions: payroll:run",
+                    "error": {
+                      "message": "Missing required permissions: payroll:run",
+                      "statusCode": 403,
+                      "path": "/api/v1/example",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_403",
+                    "httpCode": 403
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found — Resource does not exist for this organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Resource not found",
+                    "error": {
+                      "message": "Resource not found",
+                      "statusCode": 404,
+                      "path": "/api/v1/example/123",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_404",
+                    "httpCode": 404
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict — Resource already exists or is in an incompatible state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "A payroll run for 7/2026 already exists for this organization",
+                    "error": {
+                      "message": "A payroll run for 7/2026 already exists for this organization",
+                      "statusCode": 409,
+                      "path": "/api/v1/example",
+                      "method": "POST"
+                    },
+                    "errorType": "HTTP_409",
+                    "httpCode": 409
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Internal server error",
+                    "error": {
+                      "message": "Internal server error",
+                      "statusCode": 500,
+                      "path": "/api/v1/example",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_500",
+                    "httpCode": 500
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Todos"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/todos/{id}/submit": {
+      "put": {
+        "operationId": "TodosController_submit",
+        "summary": "Submit a completed quantity for review",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "TodoTask UUID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitTodoDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Todo submitted for review",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/SuccessResponseDto"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/TodoResponseDto"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request — Validation failed or missing required fields",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Validation failed: email must be a valid email address",
+                    "error": {
+                      "message": [
+                        "email must be a valid email address"
+                      ],
+                      "statusCode": 400,
+                      "path": "/api/v1/example",
+                      "method": "POST"
+                    },
+                    "errorType": "HTTP_400",
+                    "httpCode": 400
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — Invalid or expired token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Invalid or expired token",
+                    "error": {
+                      "message": "Invalid or expired token",
+                      "statusCode": 401,
+                      "path": "/api/v1/example",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_401",
+                    "httpCode": 401
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden — Insufficient permissions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Missing required permissions: payroll:run",
+                    "error": {
+                      "message": "Missing required permissions: payroll:run",
+                      "statusCode": 403,
+                      "path": "/api/v1/example",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_403",
+                    "httpCode": 403
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found — Resource does not exist for this organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Resource not found",
+                    "error": {
+                      "message": "Resource not found",
+                      "statusCode": 404,
+                      "path": "/api/v1/example/123",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_404",
+                    "httpCode": 404
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict — Resource already exists or is in an incompatible state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "A payroll run for 7/2026 already exists for this organization",
+                    "error": {
+                      "message": "A payroll run for 7/2026 already exists for this organization",
+                      "statusCode": 409,
+                      "path": "/api/v1/example",
+                      "method": "POST"
+                    },
+                    "errorType": "HTTP_409",
+                    "httpCode": 409
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Internal server error",
+                    "error": {
+                      "message": "Internal server error",
+                      "statusCode": 500,
+                      "path": "/api/v1/example",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_500",
+                    "httpCode": 500
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Todos"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/todos/{id}/approve": {
+      "put": {
+        "operationId": "TodosController_approve",
+        "summary": "Approve or reject a SUBMITTED todo",
+        "description": "On approve, creates an IncentiveLedger entry (quantity * rule rate) held or released depending on dto.hold. On reject, no ledger entry is created.",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "TodoTask UUID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApproveTodoDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Todo approved or rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/SuccessResponseDto"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/TodoResponseDto"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request — Validation failed or missing required fields",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Validation failed: email must be a valid email address",
+                    "error": {
+                      "message": [
+                        "email must be a valid email address"
+                      ],
+                      "statusCode": 400,
+                      "path": "/api/v1/example",
+                      "method": "POST"
+                    },
+                    "errorType": "HTTP_400",
+                    "httpCode": 400
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — Invalid or expired token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Invalid or expired token",
+                    "error": {
+                      "message": "Invalid or expired token",
+                      "statusCode": 401,
+                      "path": "/api/v1/example",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_401",
+                    "httpCode": 401
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden — Insufficient permissions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Missing required permissions: payroll:run",
+                    "error": {
+                      "message": "Missing required permissions: payroll:run",
+                      "statusCode": 403,
+                      "path": "/api/v1/example",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_403",
+                    "httpCode": 403
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found — Resource does not exist for this organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Resource not found",
+                    "error": {
+                      "message": "Resource not found",
+                      "statusCode": 404,
+                      "path": "/api/v1/example/123",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_404",
+                    "httpCode": 404
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict — Resource already exists or is in an incompatible state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "A payroll run for 7/2026 already exists for this organization",
+                    "error": {
+                      "message": "A payroll run for 7/2026 already exists for this organization",
+                      "statusCode": 409,
+                      "path": "/api/v1/example",
+                      "method": "POST"
+                    },
+                    "errorType": "HTTP_409",
+                    "httpCode": 409
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "success": false,
+                    "message": "Internal server error",
+                    "error": {
+                      "message": "Internal server error",
+                      "statusCode": 500,
+                      "path": "/api/v1/example",
+                      "method": "GET"
+                    },
+                    "errorType": "HTTP_500",
+                    "httpCode": 500
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Todos"
         ],
         "security": [
           {
@@ -33331,7 +33331,11 @@
     },
     {
       "name": "Incentives",
-      "description": "Todo & Incentive Engine"
+      "description": "Incentive Rules & Ledger"
+    },
+    {
+      "name": "Todos",
+      "description": "Employee Todo/Task Assignment, Submission & Approval (feeds Incentive Ledger)"
     },
     {
       "name": "Green Thanks",
@@ -33432,6 +33436,31 @@
           "password"
         ]
       },
+      "AutoLogoutConfigDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "example": false,
+            "description": "Whether this organization has a daily auto-logout cutoff configured."
+          },
+          "time": {
+            "type": "string",
+            "nullable": true,
+            "example": "21:30",
+            "description": "Wall-clock cutoff in 24h \"HH:mm\" format, evaluated in `timezone`. Null when unset."
+          },
+          "timezone": {
+            "type": "string",
+            "example": "Asia/Kolkata",
+            "description": "IANA timezone the cutoff is evaluated in."
+          }
+        },
+        "required": [
+          "enabled",
+          "timezone"
+        ]
+      },
       "EmployeeSummaryDto": {
         "type": "object",
         "properties": {
@@ -33501,6 +33530,14 @@
             "example": "http://localhost:3001/uploads/organizations/org_uuid_456/logo.png",
             "description": "Current organization logo URL — used for tenant branding in the frontend shell/login page."
           },
+          "autoLogout": {
+            "description": "Per-organization auto-logout cutoff. Surfaced here (not just on GET /organization) because roles without org:read (e.g. employee) must still be able to enforce it client-side.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AutoLogoutConfigDto"
+              }
+            ]
+          },
           "mustChangePassword": {
             "type": "boolean",
             "example": false,
@@ -33544,6 +33581,7 @@
           "email",
           "phone",
           "organizationId",
+          "autoLogout",
           "mustChangePassword",
           "permissions",
           "roles",
@@ -34108,6 +34146,22 @@
             "default": true,
             "description": "Whether employees may raise service requests with isAnonymous: true"
           },
+          "autoLogoutEnabled": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether the daily auto-logout cutoff is active"
+          },
+          "autoLogoutTime": {
+            "type": "string",
+            "nullable": true,
+            "example": "21:30",
+            "description": "Wall-clock cutoff in 24h \"HH:mm\" format, evaluated in autoLogoutTimezone"
+          },
+          "autoLogoutTimezone": {
+            "type": "string",
+            "default": "Asia/Kolkata",
+            "description": "IANA timezone for the auto-logout cutoff"
+          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -34124,6 +34178,8 @@
           "currency",
           "isActive",
           "allowAnonymousServiceRequests",
+          "autoLogoutEnabled",
+          "autoLogoutTimezone",
           "createdAt",
           "updatedAt"
         ]
@@ -35822,8 +35878,8 @@
           },
           "phone": {
             "type": "string",
-            "minLength": 10,
-            "maxLength": 10
+            "pattern": "MOBILE_NUMBER_REGEX",
+            "example": "9876543210"
           },
           "departmentId": {
             "type": "string"
@@ -35902,8 +35958,8 @@
           },
           "phone": {
             "type": "string",
-            "minLength": 10,
-            "maxLength": 10
+            "pattern": "MOBILE_NUMBER_REGEX",
+            "example": "9876543210"
           },
           "departmentId": {
             "type": "string"
@@ -36019,6 +36075,7 @@
           },
           "phone": {
             "type": "string",
+            "pattern": "MOBILE_NUMBER_REGEX",
             "example": "9876543210"
           },
           "email": {
@@ -36127,8 +36184,7 @@
           },
           "phone": {
             "type": "string",
-            "minLength": 10,
-            "maxLength": 10,
+            "pattern": "MOBILE_NUMBER_REGEX",
             "example": "9876543210"
           },
           "relation": {
@@ -36137,8 +36193,7 @@
           },
           "alternatePhone": {
             "type": "string",
-            "minLength": 10,
-            "maxLength": 10,
+            "pattern": "MOBILE_NUMBER_REGEX",
             "example": "9123456789"
           },
           "address": {
@@ -36161,8 +36216,7 @@
           },
           "phone": {
             "type": "string",
-            "minLength": 10,
-            "maxLength": 10,
+            "pattern": "MOBILE_NUMBER_REGEX",
             "example": "9876543210",
             "description": "10-digit mobile number"
           },
@@ -36329,8 +36383,7 @@
           },
           "phone": {
             "type": "string",
-            "minLength": 10,
-            "maxLength": 10
+            "pattern": "MOBILE_NUMBER_REGEX"
           },
           "relation": {
             "type": "string"
@@ -36423,8 +36476,7 @@
           },
           "phone": {
             "type": "string",
-            "minLength": 10,
-            "maxLength": 10,
+            "pattern": "MOBILE_NUMBER_REGEX",
             "example": "9876543210",
             "description": "Personal mobile number of the candidate"
           },
@@ -38204,220 +38256,6 @@
           "lastName"
         ]
       },
-      "TodoIncentiveRuleSummaryDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "rate": {
-            "type": "number"
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "rate"
-        ]
-      },
-      "TodoResponseDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "employeeId": {
-            "type": "string"
-          },
-          "employee": {
-            "nullable": true,
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/TodoEmployeeSummaryDto"
-              }
-            ]
-          },
-          "incentiveRuleId": {
-            "type": "string",
-            "nullable": true
-          },
-          "incentiveRule": {
-            "nullable": true,
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/TodoIncentiveRuleSummaryDto"
-              }
-            ]
-          },
-          "title": {
-            "type": "string"
-          },
-          "description": {
-            "type": "string",
-            "nullable": true
-          },
-          "quantity": {
-            "type": "number",
-            "nullable": true
-          },
-          "unit": {
-            "type": "string",
-            "nullable": true
-          },
-          "dueDate": {
-            "format": "date-time",
-            "type": "string",
-            "nullable": true
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "PENDING",
-              "SUBMITTED",
-              "APPROVED",
-              "REJECTED"
-            ]
-          },
-          "submittedAt": {
-            "format": "date-time",
-            "type": "string",
-            "nullable": true
-          },
-          "reviewedBy": {
-            "type": "string",
-            "nullable": true
-          },
-          "reviewedAt": {
-            "format": "date-time",
-            "type": "string",
-            "nullable": true
-          },
-          "rejectionNote": {
-            "type": "string",
-            "nullable": true
-          },
-          "createdAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "updatedAt": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "employeeId",
-          "employee",
-          "incentiveRuleId",
-          "incentiveRule",
-          "title",
-          "description",
-          "quantity",
-          "unit",
-          "dueDate",
-          "status",
-          "submittedAt",
-          "reviewedBy",
-          "reviewedAt",
-          "rejectionNote",
-          "createdAt",
-          "updatedAt"
-        ]
-      },
-      "CreateTodoDto": {
-        "type": "object",
-        "properties": {
-          "title": {
-            "type": "string",
-            "example": "Deliver 20 parcels in Sector 5"
-          },
-          "description": {
-            "type": "string"
-          },
-          "incentiveRuleId": {
-            "type": "string",
-            "description": "IncentiveRule UUID this todo is linked to"
-          },
-          "quantity": {
-            "type": "number",
-            "minimum": 0,
-            "example": 20
-          },
-          "unit": {
-            "type": "string",
-            "example": "parcels"
-          },
-          "dueDate": {
-            "type": "string",
-            "example": "2026-07-20"
-          },
-          "employeeId": {
-            "type": "string",
-            "description": "Employee UUID to create the todo on behalf of (requires todo:approve). Defaults to the caller’s own employee record."
-          }
-        },
-        "required": [
-          "title"
-        ]
-      },
-      "SubmitTodoDto": {
-        "type": "object",
-        "properties": {
-          "quantity": {
-            "type": "number",
-            "minimum": 0,
-            "example": 20,
-            "description": "Completed quantity being submitted"
-          },
-          "unit": {
-            "type": "string",
-            "example": "parcels"
-          }
-        },
-        "required": [
-          "quantity"
-        ]
-      },
-      "ApproveTodoDto": {
-        "type": "object",
-        "properties": {
-          "approve": {
-            "type": "boolean",
-            "example": true,
-            "description": "true = approve, false = reject"
-          },
-          "incentiveRuleId": {
-            "type": "string",
-            "description": "IncentiveRule UUID to attach at approval time, for a todo that was created without one. Required to approve if the todo still has no linked rule."
-          },
-          "rejectionNote": {
-            "type": "string",
-            "example": "Quantity does not match delivery logs"
-          },
-          "hold": {
-            "type": "boolean",
-            "default": false,
-            "description": "Hold the incentive amount instead of releasing it immediately"
-          },
-          "payrollMonth": {
-            "type": "number",
-            "minimum": 1,
-            "maximum": 12,
-            "example": 7
-          },
-          "payrollYear": {
-            "type": "number",
-            "example": 2026
-          }
-        },
-        "required": [
-          "approve"
-        ]
-      },
       "IncentiveLedgerTodoSummaryDto": {
         "type": "object",
         "properties": {
@@ -38737,6 +38575,220 @@
           "rejectionNote": {
             "type": "string",
             "description": "Required context when rejecting"
+          },
+          "payrollMonth": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 12,
+            "example": 7
+          },
+          "payrollYear": {
+            "type": "number",
+            "example": 2026
+          }
+        },
+        "required": [
+          "approve"
+        ]
+      },
+      "TodoIncentiveRuleSummaryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "rate": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "rate"
+        ]
+      },
+      "TodoResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "employeeId": {
+            "type": "string"
+          },
+          "employee": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TodoEmployeeSummaryDto"
+              }
+            ]
+          },
+          "incentiveRuleId": {
+            "type": "string",
+            "nullable": true
+          },
+          "incentiveRule": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TodoIncentiveRuleSummaryDto"
+              }
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "quantity": {
+            "type": "number",
+            "nullable": true
+          },
+          "unit": {
+            "type": "string",
+            "nullable": true
+          },
+          "dueDate": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "SUBMITTED",
+              "APPROVED",
+              "REJECTED"
+            ]
+          },
+          "submittedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "reviewedBy": {
+            "type": "string",
+            "nullable": true
+          },
+          "reviewedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "rejectionNote": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "employeeId",
+          "employee",
+          "incentiveRuleId",
+          "incentiveRule",
+          "title",
+          "description",
+          "quantity",
+          "unit",
+          "dueDate",
+          "status",
+          "submittedAt",
+          "reviewedBy",
+          "reviewedAt",
+          "rejectionNote",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "CreateTodoDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "example": "Deliver 20 parcels in Sector 5"
+          },
+          "description": {
+            "type": "string"
+          },
+          "incentiveRuleId": {
+            "type": "string",
+            "description": "IncentiveRule UUID this todo is linked to"
+          },
+          "quantity": {
+            "type": "number",
+            "minimum": 0,
+            "example": 20
+          },
+          "unit": {
+            "type": "string",
+            "example": "parcels"
+          },
+          "dueDate": {
+            "type": "string",
+            "example": "2026-07-20"
+          },
+          "employeeId": {
+            "type": "string",
+            "description": "Employee UUID to create the todo on behalf of (requires todo:approve). Defaults to the caller’s own employee record."
+          }
+        },
+        "required": [
+          "title"
+        ]
+      },
+      "SubmitTodoDto": {
+        "type": "object",
+        "properties": {
+          "quantity": {
+            "type": "number",
+            "minimum": 0,
+            "example": 20,
+            "description": "Completed quantity being submitted"
+          },
+          "unit": {
+            "type": "string",
+            "example": "parcels"
+          }
+        },
+        "required": [
+          "quantity"
+        ]
+      },
+      "ApproveTodoDto": {
+        "type": "object",
+        "properties": {
+          "approve": {
+            "type": "boolean",
+            "example": true,
+            "description": "true = approve, false = reject"
+          },
+          "incentiveRuleId": {
+            "type": "string",
+            "description": "IncentiveRule UUID to attach at approval time, for a todo that was created without one. Required to approve if the todo still has no linked rule."
+          },
+          "rejectionNote": {
+            "type": "string",
+            "example": "Quantity does not match delivery logs"
+          },
+          "hold": {
+            "type": "boolean",
+            "default": false,
+            "description": "Hold the incentive amount instead of releasing it immediately"
           },
           "payrollMonth": {
             "type": "number",

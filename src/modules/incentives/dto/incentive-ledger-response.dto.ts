@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IncentiveSource } from '@prisma/client';
-import { TodoEmployeeSummaryDto } from './todo-response.dto';
+import { TodoEmployeeSummaryDto } from '../../todos/dto/todo-response.dto';
 
 export class IncentiveLedgerTodoSummaryDto {
   @ApiProperty()

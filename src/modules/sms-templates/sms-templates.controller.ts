@@ -1,7 +1,10 @@
 import { Body, Controller, Get, Param, Put } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { RequirePermissions } from '@common/decorators/permissions.decorator';
-import { ApiCommonErrorResponses, ApiSuccessResponse } from '@common/swagger/api-responses.decorator';
+import {
+  ApiCommonErrorResponses,
+  ApiSuccessResponse,
+} from '@common/swagger/api-responses.decorator';
 import { SmsTemplatesService } from './sms-templates.service';
 import { UpdateSmsTemplateDto } from './dto/update-sms-template.dto';
 import { SmsTemplateResponseDto } from './dto/sms-template-response.dto';

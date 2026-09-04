@@ -7,12 +7,18 @@ export class UpdateSmsTemplateDto {
   @IsNotEmpty()
   message: string;
 
-  @ApiPropertyOptional({ nullable: true, description: 'DLT template id registered with the SMS provider' })
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'DLT template id registered with the SMS provider',
+  })
   @IsOptional()
   @IsString()
   tid?: string | null;
 
-  @ApiPropertyOptional({ nullable: true, description: 'Override sender id; falls back to the org-wide default' })
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Override sender id; falls back to the org-wide default',
+  })
   @IsOptional()
   @IsString()
   senderId?: string | null;

@@ -55,14 +55,7 @@ describe('Employee <-> User contact-field sync (e2e)', () => {
     password?: string;
     assignEmployeeRole?: boolean;
   }) {
-    const {
-      empCode,
-      phone,
-      email,
-      withUser = true,
-      password,
-      assignEmployeeRole = false,
-    } = opts;
+    const { empCode, phone, email, withUser = true, password, assignEmployeeRole = false } = opts;
 
     const employee = await prisma.employee.create({
       data: {

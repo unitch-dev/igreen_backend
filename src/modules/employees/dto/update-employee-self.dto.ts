@@ -1,5 +1,17 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsDateString, IsEmail, IsObject, IsOptional, IsString } from 'class-validator';
+import {
+  IsArray,
+  IsDateString,
+  IsEmail,
+  IsObject,
+  IsOptional,
+  IsString,
+  Matches,
+} from 'class-validator';
+import {
+  MOBILE_NUMBER_REGEX,
+  MOBILE_NUMBER_VALIDATION_MESSAGE,
+} from '../../../common/constants/mobile-number.constant';
 
 // Self-service personal-details update DTO, used by PATCH /employees/:id/self.
 // Structurally whitelists ONLY personal-information fields — the 5 admin-only
@@ -31,6 +43,7 @@ export class UpdateEmployeeSelfDto {
   @ApiPropertyOptional({ example: '9876543210' })
   @IsOptional()
   @IsString()
+  @Matches(MOBILE_NUMBER_REGEX, { message: MOBILE_NUMBER_VALIDATION_MESSAGE })
   phone?: string;
 
   @ApiPropertyOptional({ example: 'employee.personal@example.com' })

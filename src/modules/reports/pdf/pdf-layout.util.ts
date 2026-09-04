@@ -172,7 +172,10 @@ const STAT_CARD_GAP = 10;
  * mirroring the UI's KPI stat-card grid (muted label on top, bold value
  * below). Advances doc.y past the cards afterward.
  */
-export function drawStatCards(doc: PDFKit.PDFDocument, cards: { label: string; value: string }[]): void {
+export function drawStatCards(
+  doc: PDFKit.PDFDocument,
+  cards: { label: string; value: string }[],
+): void {
   if (cards.length === 0) return;
 
   const marginLeft = doc.page.margins.left;

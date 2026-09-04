@@ -375,6 +375,9 @@ model Organization {
   currency                      CurrencyCode @default(INR)
   isActive                      Boolean      @default(true)
   allowAnonymousServiceRequests Boolean      @default(true)
+  autoLogoutEnabled             Boolean      @default(false)
+  autoLogoutTime                String?
+  autoLogoutTimezone            String       @default("Asia/Kolkata")
   createdAt                     DateTime     @default(now())
   updatedAt                     DateTime     @updatedAt
   createdById                   String?

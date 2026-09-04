@@ -81,7 +81,8 @@ async function bootstrap() {
         'Payroll Runs & Entries (salary structure/tax config lives under Organizations)',
       )
       .addTag('Loans', 'Loan Management')
-      .addTag('Incentives', 'Todo & Incentive Engine')
+      .addTag('Incentives', 'Incentive Rules & Ledger')
+      .addTag('Todos', 'Employee Todo/Task Assignment, Submission & Approval (feeds Incentive Ledger)')
       .addTag('Green Thanks', 'Peer-to-Peer Green Thanks Points & Org Configuration')
       .addTag('Notices', 'Company Notice Board — Publishing, Targeting & Read Receipts')
       .addTag(

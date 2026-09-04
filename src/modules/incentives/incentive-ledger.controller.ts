@@ -9,7 +9,7 @@ import {
   ApiSuccessResponse,
 } from '@common/swagger/api-responses.decorator';
 import { IncentiveLedgerService } from './incentive-ledger.service';
-import { RequestingUser } from './todos.service';
+import { RequestingUser } from '../todos/todos.service';
 import { QueryIncentiveLedgerDto } from './dto/query-incentive-ledger.dto';
 import { ReleaseIncentiveDto } from './dto/release-incentive.dto';
 import { IncentiveLedgerResponseDto } from './dto/incentive-ledger-response.dto';

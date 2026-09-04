@@ -4,19 +4,25 @@ import {
   IsEmail,
   IsEnum,
   IsNotEmpty,
-  IsNumberString,
   IsOptional,
   IsString,
   IsUUID,
-  Length,
+  Matches,
 } from 'class-validator';
 import { EmploymentType } from '@prisma/client';
+import {
+  MOBILE_NUMBER_REGEX,
+  MOBILE_NUMBER_VALIDATION_MESSAGE,
+} from '../../../common/constants/mobile-number.constant';
 
 export class CreateEmployeeDto {
   @ApiProperty() @IsString() @IsNotEmpty() firstName: string;
   @ApiProperty() @IsString() @IsNotEmpty() lastName: string;
   @ApiProperty() @IsEmail() email: string;
-  @ApiProperty() @IsNumberString() @Length(10, 10) phone: string;
+  @ApiProperty({ example: '9876543210' })
+  @IsString()
+  @Matches(MOBILE_NUMBER_REGEX, { message: MOBILE_NUMBER_VALIDATION_MESSAGE })
+  phone: string;
 
   @ApiProperty() @IsUUID() departmentId: string;
   @ApiProperty() @IsUUID() designationId: string;

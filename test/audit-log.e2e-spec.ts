@@ -292,7 +292,9 @@ describe('Audit logging middleware (e2e)', () => {
         .send({ email: org.adminEmail, password: PASSWORD })
         .expect(200);
 
-      const loginHistoryRows = await prisma.loginHistory.count({ where: { userId: org.adminUserId } });
+      const loginHistoryRows = await prisma.loginHistory.count({
+        where: { userId: org.adminUserId },
+      });
       expect(loginHistoryRows).toBeGreaterThan(0);
 
       const afterCount = await prisma.auditLog.count({
@@ -319,7 +321,9 @@ describe('Audit logging middleware (e2e)', () => {
         .send({ token: `fcm-${uuid()}`, platform: 'android' })
         .expect(200);
 
-      const deviceTokenRows = await prisma.deviceToken.count({ where: { userId: org.adminUserId } });
+      const deviceTokenRows = await prisma.deviceToken.count({
+        where: { userId: org.adminUserId },
+      });
       expect(deviceTokenRows).toBeGreaterThan(0);
 
       const afterCount = await prisma.auditLog.count({

@@ -642,7 +642,8 @@ describe('Green Thanks module (e2e)', () => {
 
     beforeAll(async () => {
       const adminUser = await prisma.user.findFirst({ where: { email: 'admin@igreentec.in' } });
-      if (!adminUser) throw new Error('Seeded admin@igreentec.in not found — run the seeders first');
+      if (!adminUser)
+        throw new Error('Seeded admin@igreentec.in not found — run the seeders first');
       if (!adminUser.employeeId) {
         throw new Error(
           'Seeded admin@igreentec.in has no employeeId — run `npm run prisma:seed` to apply the ' +
@@ -659,11 +660,18 @@ describe('Green Thanks module (e2e)', () => {
       adminToken = login.body.data.accessToken;
 
       const anotherEmployee = await prisma.employee.findFirst({
-        where: { organizationId: adminOrgId, status: 'ACTIVE', deletedAt: null, id: { not: adminEmployeeId } },
+        where: {
+          organizationId: adminOrgId,
+          status: 'ACTIVE',
+          deletedAt: null,
+          id: { not: adminEmployeeId },
+        },
         select: { id: true },
       });
       if (!anotherEmployee) {
-        throw new Error('No other active employee found in the seeded iGreen org to send thanks to');
+        throw new Error(
+          'No other active employee found in the seeded iGreen org to send thanks to',
+        );
       }
       otherEmployeeId = anotherEmployee.id;
 

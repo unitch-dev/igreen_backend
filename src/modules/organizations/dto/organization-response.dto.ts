@@ -17,6 +17,16 @@ export class OrganizationResponseDto {
     description: 'Whether employees may raise service requests with isAnonymous: true',
   })
   allowAnonymousServiceRequests: boolean;
+  @ApiProperty({ default: false, description: 'Whether the daily auto-logout cutoff is active' })
+  autoLogoutEnabled: boolean;
+  @ApiPropertyOptional({
+    example: '21:30',
+    nullable: true,
+    description: 'Wall-clock cutoff in 24h "HH:mm" format, evaluated in autoLogoutTimezone',
+  })
+  autoLogoutTime: string | null;
+  @ApiProperty({ default: 'Asia/Kolkata', description: 'IANA timezone for the auto-logout cutoff' })
+  autoLogoutTimezone: string;
   @ApiProperty() createdAt: Date;
   @ApiProperty() updatedAt: Date;
 }

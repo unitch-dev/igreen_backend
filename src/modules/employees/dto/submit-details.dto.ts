@@ -8,13 +8,16 @@ import {
   IsEmail,
   IsEnum,
   IsNotEmpty,
-  IsNumberString,
   IsOptional,
   IsString,
-  Length,
+  Matches,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import {
+  MOBILE_NUMBER_REGEX,
+  MOBILE_NUMBER_VALIDATION_MESSAGE,
+} from '../../../common/constants/mobile-number.constant';
 
 export enum Gender {
   MALE = 'MALE',
@@ -32,7 +35,10 @@ class AddressDto {
 
 class EmergencyContactDto {
   @ApiProperty() @IsString() @IsNotEmpty() name: string;
-  @ApiProperty() @IsNumberString() @Length(10, 10) phone: string;
+  @ApiProperty()
+  @IsString()
+  @Matches(MOBILE_NUMBER_REGEX, { message: MOBILE_NUMBER_VALIDATION_MESSAGE })
+  phone: string;
   @ApiProperty() @IsString() @IsNotEmpty() relation: string;
 }
 
@@ -85,8 +91,8 @@ export class SubmitDetailsDto {
     example: '9876543210',
     description: 'Personal mobile number of the candidate',
   })
-  @IsNumberString()
-  @Length(10, 10)
+  @IsString()
+  @Matches(MOBILE_NUMBER_REGEX, { message: MOBILE_NUMBER_VALIDATION_MESSAGE })
   @IsOptional()
   phone?: string;
 

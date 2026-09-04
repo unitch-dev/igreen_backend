@@ -28,6 +28,14 @@ export class OrganizationsService {
       if (collision) throw new BadRequestException('Email is already used by another organization');
     }
 
+    // Cross-field rule: enabling auto-logout without a cutoff time makes the
+    // feature unreachable/undefined for the scheduler — reject early.
+    const willBeEnabled = dto.autoLogoutEnabled ?? org.autoLogoutEnabled;
+    const willHaveTime = dto.autoLogoutTime !== undefined ? dto.autoLogoutTime : org.autoLogoutTime;
+    if (willBeEnabled && !willHaveTime) {
+      throw new BadRequestException('autoLogoutTime is required when autoLogoutEnabled is true');
+    }
+
     return this.prisma.organization.update({ where: { id: organizationId }, data: dto });
   }
 

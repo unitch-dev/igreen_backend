@@ -116,11 +116,20 @@ export class AuthService {
 
     if (!user) throw new UnauthorizedException('User not found');
 
-    // Lightweight, non-sensitive branding metadata every authenticated user
-    // needs regardless of `org:read` — see tenant-logo-branding module plan.
+    // Lightweight, non-sensitive branding + auto-logout metadata every
+    // authenticated user needs regardless of `org:read` — see
+    // tenant-logo-branding and auto-logout-and-mobile-validation module plans.
+    // The `employee` role has no `org:read`, so the auto-logout cutoff MUST be
+    // surfaced here rather than only via `GET /organization`.
     const org = await this.prisma.organization.findUnique({
       where: { id: organizationId },
-      select: { name: true, logoUrl: true },
+      select: {
+        name: true,
+        logoUrl: true,
+        autoLogoutEnabled: true,
+        autoLogoutTime: true,
+        autoLogoutTimezone: true,
+      },
     });
 
     const tokens = await this.generateTokens(user.id, user.email, organizationId);
@@ -153,6 +162,11 @@ export class AuthService {
         organizationId,
         organizationName: org?.name ?? null,
         organizationLogoUrl: org?.logoUrl ?? null,
+        autoLogout: {
+          enabled: org?.autoLogoutEnabled ?? false,
+          time: org?.autoLogoutTime ?? null,
+          timezone: org?.autoLogoutTimezone ?? 'Asia/Kolkata',
+        },
         mustChangePassword: user.mustChangePassword,
         permissions: [...new Set(permissions)],
         employee: user.employee
@@ -279,11 +293,18 @@ export class AuthService {
     });
     if (!user) throw new NotFoundException('User not found');
 
-    // Lightweight, non-sensitive branding metadata every authenticated user
-    // needs regardless of `org:read` — see tenant-logo-branding module plan.
+    // Lightweight, non-sensitive branding + auto-logout metadata every
+    // authenticated user needs regardless of `org:read` — see
+    // tenant-logo-branding and auto-logout-and-mobile-validation module plans.
     const org = await this.prisma.organization.findUnique({
       where: { id: user.organizationId },
-      select: { name: true, logoUrl: true },
+      select: {
+        name: true,
+        logoUrl: true,
+        autoLogoutEnabled: true,
+        autoLogoutTime: true,
+        autoLogoutTimezone: true,
+      },
     });
 
     const permissions = user.userRoles.flatMap((ur) => (ur.role.permissions as string[]) || []);
@@ -305,6 +326,11 @@ export class AuthService {
       organizationId: user.organizationId,
       organizationName: org?.name ?? null,
       organizationLogoUrl: org?.logoUrl ?? null,
+      autoLogout: {
+        enabled: org?.autoLogoutEnabled ?? false,
+        time: org?.autoLogoutTime ?? null,
+        timezone: org?.autoLogoutTimezone ?? 'Asia/Kolkata',
+      },
       mustChangePassword: user.mustChangePassword,
       permissions: [...new Set(permissions)],
       roles,

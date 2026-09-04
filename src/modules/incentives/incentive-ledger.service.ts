@@ -9,7 +9,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { paginate } from '@common/dto/pagination.dto';
 import { QueryIncentiveLedgerDto } from './dto/query-incentive-ledger.dto';
 import { ReleaseIncentiveDto } from './dto/release-incentive.dto';
-import { RequestingUser, TODO_APPROVE_PERMISSION } from './todos.service';
+import { RequestingUser, TODO_APPROVE_PERMISSION } from '../todos/todos.service';
 
 export interface ReleasedIncentiveForPeriod {
   totalIncentive: number;

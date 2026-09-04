@@ -1351,7 +1351,8 @@ describe('Reports & Dashboard module (e2e)', () => {
           .expect(200);
 
         const updateEntry = auditRes2.body.data.systemChanges.find(
-          (c: any) => c.entityType === 'Department' && c.entityId === departmentId && c.action === 'UPDATE',
+          (c: any) =>
+            c.entityType === 'Department' && c.entityId === departmentId && c.action === 'UPDATE',
         );
         expect(updateEntry).toBeDefined();
         expect(updateEntry.actorName).toBe(`Fx auditlog-create`);

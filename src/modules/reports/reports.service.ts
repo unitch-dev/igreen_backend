@@ -899,7 +899,9 @@ export class ReportsService {
 
     // Resolve actor display identity for systemChanges in a single batch query,
     // using the same display-name convention as the login `rows` above.
-    const actorIds = [...new Set(systemChanges.map((a) => a.actorId).filter((id): id is string => !!id))];
+    const actorIds = [
+      ...new Set(systemChanges.map((a) => a.actorId).filter((id): id is string => !!id)),
+    ];
     const actors =
       actorIds.length > 0
         ? await this.prisma.user.findMany({
@@ -1364,7 +1366,16 @@ export class ReportsService {
       doc.fontSize(13).text('Per-Employee Breakdown', { underline: true });
       doc.moveDown(0.5);
       drawTable(doc, {
-        headers: ['Emp Code', 'Name', 'Gross Salary', 'Net Salary', 'PF (Employee)', 'ESI (Employee)', 'TDS', 'Loan Deduction'],
+        headers: [
+          'Emp Code',
+          'Name',
+          'Gross Salary',
+          'Net Salary',
+          'PF (Employee)',
+          'ESI (Employee)',
+          'TDS',
+          'Loan Deduction',
+        ],
         columnWidths: [55, 100, 65, 65, 65, 65, 45, 55],
         rows: data.rows.map((r) => [
           r.empCode,
@@ -1468,7 +1479,14 @@ export class ReportsService {
       drawTable(doc, {
         headers: ['Emp Code', 'Name', 'Present', 'Absent', 'Leave Days', 'LOP'],
         columnWidths: [80, 195, 80, 80, 40, 40],
-        rows: data.rows.map((r) => [r.empCode, r.name, r.presentDays, r.absentDays, r.leaveDays, r.lopDays]),
+        rows: data.rows.map((r) => [
+          r.empCode,
+          r.name,
+          r.presentDays,
+          r.absentDays,
+          r.leaveDays,
+          r.lopDays,
+        ]),
       });
 
       addFooter(doc);

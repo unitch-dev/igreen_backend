@@ -48,8 +48,9 @@ describe('NotificationsService.sendSms', () => {
       prisma as unknown as PrismaService,
     );
     // Silence + allow assertions on logger output without real console noise.
-    (service as unknown as { logger: { log: jest.Mock; warn: jest.Mock; error: jest.Mock } }).logger =
-      { log: jest.fn(), warn: jest.fn(), error: jest.fn() } as never;
+    (
+      service as unknown as { logger: { log: jest.Mock; warn: jest.Mock; error: jest.Mock } }
+    ).logger = { log: jest.fn(), warn: jest.fn(), error: jest.fn() } as never;
   });
 
   function getLogger() {
@@ -152,9 +153,7 @@ describe('NotificationsService.sendSms', () => {
       const result = await service.sendSms('9999999999', 'otp', { otp: '654321' });
 
       expect(result).toBeUndefined();
-      expect(getLogger().log).toHaveBeenCalledWith(
-        expect.stringContaining('[DEV SMS]'),
-      );
+      expect(getLogger().log).toHaveBeenCalledWith(expect.stringContaining('[DEV SMS]'));
       expect(getLogger().log).toHaveBeenCalledWith(expect.stringContaining('Your OTP is 654321'));
       expect(mockedAxios.post).not.toHaveBeenCalled();
     });

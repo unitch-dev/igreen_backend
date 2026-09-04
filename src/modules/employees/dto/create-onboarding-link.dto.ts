@@ -4,15 +4,18 @@ import {
   IsEmail,
   IsEnum,
   IsInt,
-  IsNumberString,
   IsOptional,
   IsString,
-  Length,
+  Matches,
   Max,
   Min,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { EmploymentType } from '@prisma/client';
+import {
+  MOBILE_NUMBER_REGEX,
+  MOBILE_NUMBER_VALIDATION_MESSAGE,
+} from '../../../common/constants/mobile-number.constant';
 
 export class CreateOnboardingLinkDto {
   @ApiProperty({ example: 'raj.patel@example.com' })
@@ -20,8 +23,8 @@ export class CreateOnboardingLinkDto {
   email: string;
 
   @ApiProperty({ example: '9876543210', description: '10-digit mobile number' })
-  @IsNumberString()
-  @Length(10, 10)
+  @IsString()
+  @Matches(MOBILE_NUMBER_REGEX, { message: MOBILE_NUMBER_VALIDATION_MESSAGE })
   phone: string;
 
   @ApiPropertyOptional({ example: 'Raj Patel', description: 'Pre-fill candidate name in form' })

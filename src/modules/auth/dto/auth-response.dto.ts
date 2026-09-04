@@ -20,6 +20,28 @@ export class EmployeeSummaryDto {
   designation: string;
 }
 
+export class AutoLogoutConfigDto {
+  @ApiProperty({
+    example: false,
+    description: 'Whether this organization has a daily auto-logout cutoff configured.',
+  })
+  enabled: boolean;
+
+  @ApiPropertyOptional({
+    example: '21:30',
+    nullable: true,
+    description:
+      'Wall-clock cutoff in 24h "HH:mm" format, evaluated in `timezone`. Null when unset.',
+  })
+  time: string | null;
+
+  @ApiProperty({
+    example: 'Asia/Kolkata',
+    description: 'IANA timezone the cutoff is evaluated in.',
+  })
+  timezone: string;
+}
+
 export class AuthUserDto {
   @ApiProperty({ example: 'user_uuid_123' })
   id: string;
@@ -47,6 +69,14 @@ export class AuthUserDto {
       'Current organization logo URL — used for tenant branding in the frontend shell/login page.',
   })
   organizationLogoUrl: string | null;
+
+  @ApiProperty({
+    type: AutoLogoutConfigDto,
+    description:
+      'Per-organization auto-logout cutoff. Surfaced here (not just on GET /organization) ' +
+      'because roles without org:read (e.g. employee) must still be able to enforce it client-side.',
+  })
+  autoLogout: AutoLogoutConfigDto;
 
   @ApiProperty({
     example: false,

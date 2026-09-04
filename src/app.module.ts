@@ -28,6 +28,7 @@ import { LeaveModule } from './modules/leave/leave.module';
 import { PayrollModule } from './modules/payroll/payroll.module';
 import { LoansModule } from './modules/loans/loans.module';
 import { IncentivesModule } from './modules/incentives/incentives.module';
+import { TodosModule } from './modules/todos/todos.module';
 import { GreenThanksModule } from './modules/green-thanks/green-thanks.module';
 import { NoticesModule } from './modules/notices/notices.module';
 import { ChatModule } from './modules/chat/chat.module';
@@ -107,6 +108,7 @@ import { SmsTemplatesModule } from './modules/sms-templates/sms-templates.module
     PayrollModule,
     LoansModule,
     IncentivesModule,
+    TodosModule,
     GreenThanksModule,
     NoticesModule,
     ChatModule,

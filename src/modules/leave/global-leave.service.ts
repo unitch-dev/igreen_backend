@@ -174,10 +174,7 @@ export class GlobalLeaveService {
       where: {
         organizationId,
         date: dateRange,
-        OR: [
-          { appliesToAll: true },
-          ...(zoneId ? [{ zones: { some: { id: zoneId } } }] : []),
-        ],
+        OR: [{ appliesToAll: true }, ...(zoneId ? [{ zones: { some: { id: zoneId } } }] : [])],
       },
       orderBy: { date: 'asc' },
     });

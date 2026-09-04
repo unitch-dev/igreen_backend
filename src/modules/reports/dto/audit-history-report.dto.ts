@@ -45,10 +45,16 @@ export class AuditSystemChangeRowDto {
   @ApiProperty({ nullable: true })
   actorId: string | null;
 
-  @ApiProperty({ nullable: true, description: 'Resolved actor display name, or null if unknown/deleted' })
+  @ApiProperty({
+    nullable: true,
+    description: 'Resolved actor display name, or null if unknown/deleted',
+  })
   actorName: string | null;
 
-  @ApiProperty({ nullable: true, description: 'Resolved actor employee code, or null if unknown/deleted' })
+  @ApiProperty({
+    nullable: true,
+    description: 'Resolved actor employee code, or null if unknown/deleted',
+  })
   actorEmpCode: string | null;
 
   @ApiProperty()
